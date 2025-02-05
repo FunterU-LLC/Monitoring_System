@@ -8,12 +8,27 @@
 
 /* Begin PBXBuildFile section */
 		4AB0FF882D47619400A3CD5C /* MonitoringSystemApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AB0FF872D47619400A3CD5C /* MonitoringSystemApp.swift */; };
-		4AB0FF8A2D47619400A3CD5C /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AB0FF892D47619400A3CD5C /* ContentView.swift */; };
 		4AB0FF8C2D47619600A3CD5C /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 4AB0FF8B2D47619600A3CD5C /* Assets.xcassets */; };
 		4AB0FF8F2D47619600A3CD5C /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 4AB0FF8E2D47619600A3CD5C /* Preview Assets.xcassets */; };
 		4AB0FF9A2D47619600A3CD5C /* MonitoringSystemTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AB0FF992D47619600A3CD5C /* MonitoringSystemTests.swift */; };
 		4AB0FFA42D47619600A3CD5C /* MonitoringSystemUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AB0FFA32D47619600A3CD5C /* MonitoringSystemUITests.swift */; };
 		4AB0FFA62D47619600A3CD5C /* MonitoringSystemUITestsLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AB0FFA52D47619600A3CD5C /* MonitoringSystemUITestsLaunchTests.swift */; };
+		4AB0FFC52D48C9ED00A3CD5C /* ManagementView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AB0FFC42D48C9ED00A3CD5C /* ManagementView.swift */; };
+		4AC720CD2DB25DB20018A744 /* SessionDataStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AC720CC2DB25DB20018A744 /* SessionDataStore.swift */; };
+		4AE98C8B2D50E0F200CFA135 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AE98C8A2D50E0F200CFA135 /* Models.swift */; };
+		4AE98C8D2D50E10C00CFA135 /* FaceRecognitionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AE98C8C2D50E10C00CFA135 /* FaceRecognitionManager.swift */; };
+		4AE98C8F2D50E12900CFA135 /* RemindersManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AE98C8E2D50E12900CFA135 /* RemindersManager.swift */; };
+		4AE98C912D50E13E00CFA135 /* AppUsageManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AE98C902D50E13E00CFA135 /* AppUsageManager.swift */; };
+		4AE98C932D50E15900CFA135 /* SupabaseManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AE98C922D50E15900CFA135 /* SupabaseManager.swift */; };
+		4AE98C952D50E17F00CFA135 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AE98C942D50E17F00CFA135 /* ContentView.swift */; };
+		4AE98C972D50E19200CFA135 /* TaskStartPopupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AE98C962D50E19200CFA135 /* TaskStartPopupView.swift */; };
+		4AE98C992D50E1AE00CFA135 /* WorkInProgressView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AE98C982D50E1AE00CFA135 /* WorkInProgressView.swift */; };
+		4AE98C9B2D50E1C300CFA135 /* FinishTaskPopupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AE98C9A2D50E1C300CFA135 /* FinishTaskPopupView.swift */; };
+		4AE98C9D2D50E1EA00CFA135 /* CameraManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AE98C9C2D50E1EA00CFA135 /* CameraManager.swift */; };
+		4AE98C9F2D50E1FF00CFA135 /* CameraPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AE98C9E2D50E1FF00CFA135 /* CameraPreviewView.swift */; };
+		4AE98CA12D50E21600CFA135 /* CameraTestTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AE98CA02D50E21600CFA135 /* CameraTestTabView.swift */; };
+		4AE98CA72D53952800CFA135 /* PopupCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AE98CA62D53952800CFA135 /* PopupCoordinator.swift */; };
+		D08475402DB8E39B00462E88 /* SessionDataModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D084753F2DB8E39B00462E88 /* SessionDataModel.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -36,7 +51,6 @@
 /* Begin PBXFileReference section */
 		4AB0FF842D47619400A3CD5C /* MonitoringSystem.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MonitoringSystem.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		4AB0FF872D47619400A3CD5C /* MonitoringSystemApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonitoringSystemApp.swift; sourceTree = "<group>"; };
-		4AB0FF892D47619400A3CD5C /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		4AB0FF8B2D47619600A3CD5C /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		4AB0FF8E2D47619600A3CD5C /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		4AB0FF902D47619600A3CD5C /* MonitoringSystem.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MonitoringSystem.entitlements; sourceTree = "<group>"; };
@@ -45,6 +59,23 @@
 		4AB0FF9F2D47619600A3CD5C /* MonitoringSystemUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MonitoringSystemUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		4AB0FFA32D47619600A3CD5C /* MonitoringSystemUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonitoringSystemUITests.swift; sourceTree = "<group>"; };
 		4AB0FFA52D47619600A3CD5C /* MonitoringSystemUITestsLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonitoringSystemUITestsLaunchTests.swift; sourceTree = "<group>"; };
+		4AB0FFC42D48C9ED00A3CD5C /* ManagementView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManagementView.swift; sourceTree = "<group>"; };
+		4AC720CC2DB25DB20018A744 /* SessionDataStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionDataStore.swift; sourceTree = "<group>"; };
+		4AE98C8A2D50E0F200CFA135 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
+		4AE98C8C2D50E10C00CFA135 /* FaceRecognitionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FaceRecognitionManager.swift; sourceTree = "<group>"; };
+		4AE98C8E2D50E12900CFA135 /* RemindersManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemindersManager.swift; sourceTree = "<group>"; };
+		4AE98C902D50E13E00CFA135 /* AppUsageManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUsageManager.swift; sourceTree = "<group>"; };
+		4AE98C922D50E15900CFA135 /* SupabaseManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseManager.swift; sourceTree = "<group>"; };
+		4AE98C942D50E17F00CFA135 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		4AE98C962D50E19200CFA135 /* TaskStartPopupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskStartPopupView.swift; sourceTree = "<group>"; };
+		4AE98C982D50E1AE00CFA135 /* WorkInProgressView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkInProgressView.swift; sourceTree = "<group>"; };
+		4AE98C9A2D50E1C300CFA135 /* FinishTaskPopupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FinishTaskPopupView.swift; sourceTree = "<group>"; };
+		4AE98C9C2D50E1EA00CFA135 /* CameraManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraManager.swift; sourceTree = "<group>"; };
+		4AE98C9E2D50E1FF00CFA135 /* CameraPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraPreviewView.swift; sourceTree = "<group>"; };
+		4AE98CA02D50E21600CFA135 /* CameraTestTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraTestTabView.swift; sourceTree = "<group>"; };
+		4AE98CA62D53952800CFA135 /* PopupCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PopupCoordinator.swift; sourceTree = "<group>"; };
+		D084753F2DB8E39B00462E88 /* SessionDataModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionDataModel.swift; sourceTree = "<group>"; };
+		D08A12FE2DB5D73F00D47101 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -95,8 +126,24 @@
 		4AB0FF862D47619400A3CD5C /* MonitoringSystem */ = {
 			isa = PBXGroup;
 			children = (
+				D08A12FE2DB5D73F00D47101 /* Info.plist */,
 				4AB0FF872D47619400A3CD5C /* MonitoringSystemApp.swift */,
-				4AB0FF892D47619400A3CD5C /* ContentView.swift */,
+				4AE98C8C2D50E10C00CFA135 /* FaceRecognitionManager.swift */,
+				4AE98C8E2D50E12900CFA135 /* RemindersManager.swift */,
+				4AE98C902D50E13E00CFA135 /* AppUsageManager.swift */,
+				4AE98C942D50E17F00CFA135 /* ContentView.swift */,
+				4AB0FFC42D48C9ED00A3CD5C /* ManagementView.swift */,
+				4AE98C962D50E19200CFA135 /* TaskStartPopupView.swift */,
+				4AE98C982D50E1AE00CFA135 /* WorkInProgressView.swift */,
+				4AE98C9A2D50E1C300CFA135 /* FinishTaskPopupView.swift */,
+				4AE98C9C2D50E1EA00CFA135 /* CameraManager.swift */,
+				4AE98CA62D53952800CFA135 /* PopupCoordinator.swift */,
+				4AE98C9E2D50E1FF00CFA135 /* CameraPreviewView.swift */,
+				4AE98CA02D50E21600CFA135 /* CameraTestTabView.swift */,
+				4AE98C8A2D50E0F200CFA135 /* Models.swift */,
+				4AC720CC2DB25DB20018A744 /* SessionDataStore.swift */,
+				4AE98C922D50E15900CFA135 /* SupabaseManager.swift */,
+				D084753F2DB8E39B00462E88 /* SessionDataModel.swift */,
 				4AB0FF8B2D47619600A3CD5C /* Assets.xcassets */,
 				4AB0FF902D47619600A3CD5C /* MonitoringSystem.entitlements */,
 				4AB0FF8D2D47619600A3CD5C /* Preview Content */,
@@ -145,6 +192,8 @@
 			dependencies = (
 			);
 			name = MonitoringSystem;
+			packageProductDependencies = (
+			);
 			productName = MonitoringSystem;
 			productReference = 4AB0FF842D47619400A3CD5C /* MonitoringSystem.app */;
 			productType = "com.apple.product-type.application";
@@ -193,7 +242,7 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 1420;
-				LastUpgradeCheck = 1420;
+				LastUpgradeCheck = 1630;
 				TargetAttributes = {
 					4AB0FF832D47619400A3CD5C = {
 						CreatedOnToolsVersion = 14.2;
@@ -217,6 +266,8 @@
 				Base,
 			);
 			mainGroup = 4AB0FF7B2D47619400A3CD5C;
+			packageReferences = (
+			);
 			productRefGroup = 4AB0FF852D47619400A3CD5C /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -259,8 +310,23 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				4AB0FF8A2D47619400A3CD5C /* ContentView.swift in Sources */,
+				4AE98C8F2D50E12900CFA135 /* RemindersManager.swift in Sources */,
+				4AE98C9D2D50E1EA00CFA135 /* CameraManager.swift in Sources */,
+				4AE98C932D50E15900CFA135 /* SupabaseManager.swift in Sources */,
+				4AE98C9B2D50E1C300CFA135 /* FinishTaskPopupView.swift in Sources */,
+				4AE98C8B2D50E0F200CFA135 /* Models.swift in Sources */,
+				4AE98C9F2D50E1FF00CFA135 /* CameraPreviewView.swift in Sources */,
+				4AE98C972D50E19200CFA135 /* TaskStartPopupView.swift in Sources */,
+				D08475402DB8E39B00462E88 /* SessionDataModel.swift in Sources */,
+				4AE98C992D50E1AE00CFA135 /* WorkInProgressView.swift in Sources */,
+				4AE98CA12D50E21600CFA135 /* CameraTestTabView.swift in Sources */,
+				4AE98C912D50E13E00CFA135 /* AppUsageManager.swift in Sources */,
 				4AB0FF882D47619400A3CD5C /* MonitoringSystemApp.swift in Sources */,
+				4AE98C952D50E17F00CFA135 /* ContentView.swift in Sources */,
+				4AC720CD2DB25DB20018A744 /* SessionDataStore.swift in Sources */,
+				4AE98C8D2D50E10C00CFA135 /* FaceRecognitionManager.swift in Sources */,
+				4AE98CA72D53952800CFA135 /* PopupCoordinator.swift in Sources */,
+				4AB0FFC52D48C9ED00A3CD5C /* ManagementView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -330,9 +396,12 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = UVFVRC6C53;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;
@@ -347,13 +416,14 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				MACOSX_DEPLOYMENT_TARGET = 12.7;
+				MACOSX_DEPLOYMENT_TARGET = 14.6;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = macosx;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 6.0;
 			};
 			name = Debug;
 		};
@@ -390,9 +460,12 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = UVFVRC6C53;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
@@ -401,12 +474,13 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				MACOSX_DEPLOYMENT_TARGET = 12.7;
+				MACOSX_DEPLOYMENT_TARGET = 14.6;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				SDKROOT = macosx;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 6.0;
 			};
 			name = Release;
 		};
@@ -419,16 +493,20 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"MonitoringSystem/Preview Content\"";
-				DEVELOPMENT_TEAM = UVFVRC6C53;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = MonitoringSystem/Info.plist;
+				INFOPLIST_KEY_NSCameraUsageDescription = "";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSRemindersUsageDescription = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
+				MACOSX_DEPLOYMENT_TARGET = 14.6;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = EitoNiiyama.MonitoringSystem;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -446,16 +524,20 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"MonitoringSystem/Preview Content\"";
-				DEVELOPMENT_TEAM = UVFVRC6C53;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = MonitoringSystem/Info.plist;
+				INFOPLIST_KEY_NSCameraUsageDescription = "";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSRemindersUsageDescription = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
+				MACOSX_DEPLOYMENT_TARGET = 14.6;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = EitoNiiyama.MonitoringSystem;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -467,11 +549,10 @@
 		4AB0FFAD2D47619600A3CD5C /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = UVFVRC6C53;
+				DEAD_CODE_STRIPPING = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 12.7;
 				MARKETING_VERSION = 1.0;
@@ -486,11 +567,10 @@
 		4AB0FFAE2D47619600A3CD5C /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = UVFVRC6C53;
+				DEAD_CODE_STRIPPING = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 12.7;
 				MARKETING_VERSION = 1.0;
@@ -505,10 +585,9 @@
 		4AB0FFB02D47619600A3CD5C /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = UVFVRC6C53;
+				DEAD_CODE_STRIPPING = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = EitoNiiyama.MonitoringSystemUITests;
@@ -522,10 +601,9 @@
 		4AB0FFB12D47619600A3CD5C /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = UVFVRC6C53;
+				DEAD_CODE_STRIPPING = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = EitoNiiyama.MonitoringSystemUITests;
