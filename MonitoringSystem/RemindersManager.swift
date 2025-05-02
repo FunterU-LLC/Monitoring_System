@@ -1,4 +1,5 @@
-import Observation      // ← Combine は不要
+//RemindersManager.swift
+import Observation
 import EventKit
 import SwiftUI
 
@@ -6,21 +7,17 @@ import SwiftUI
 @MainActor
 class RemindersManager {
 
-    // ────────── 公開プロパティ ──────────
     var taskLists: [String] = []
     var tasks: [TaskItem]  = []
     var selectedList: String = ""
     var accessStatus: ReminderAccessStatus = .unknown
 
-    private let store = EKEventStore()
+    let store = EKEventStore()
 
-    // MARK: - イニシャライザ
     init() {
-        // 非同期で権限確認 → リスト取得
         Task { await refreshAccessAndLists() }
     }
 
-    // MARK: - アクセス状態
     enum ReminderAccessStatus {
         case authorized, denied, noLists, noTasks, unknown
 
@@ -35,11 +32,8 @@ class RemindersManager {
         }
     }
 
-    // MARK: - 権限確認 & リスト取得（async）
-    // MARK: - 権限確認 & リスト取得（async）
     private func refreshAccessAndLists() async {
     #if compiler(>=5.9)
-        // ────── 新 SDK (macOS14/iOS17 以降) ──────
         let status = EKEventStore.authorizationStatus(for: .reminder)
 
         switch status {
@@ -62,7 +56,6 @@ class RemindersManager {
         }
 
     #else
-        // ────── 旧 SDK (macOS13/iOS16 以前) ──────
         let status = EKEventStore.authorizationStatus(for: .reminder)
 
         switch status {
@@ -86,7 +79,6 @@ class RemindersManager {
     #endif
     }
 
-    /// macOS 14/iOS 17 で追加されたフルアクセス要求を async ラップ
     private func requestFullAccessAsync() async -> Bool {
         await withCheckedContinuation { continuation in
 #if compiler(>=5.9)
@@ -101,7 +93,6 @@ class RemindersManager {
         }
     }
 
-    // MARK: - リスト取得（async）
     func fetchReminderLists() async {
         let calendars = store.calendars(for: .reminder)
         guard !calendars.isEmpty else {
@@ -112,14 +103,11 @@ class RemindersManager {
 
         taskLists = calendars.map(\.title)
 
-        // デフォルト選択
         guard let first = taskLists.first else { return }
         selectedList = first
         await fetchTasksAsync(for: first)
     }
 
-    // MARK: - タスク取得（async メインルーチン）
-    // MARK: - タスク取得（async メインルーチン）
     private func fetchTasksAsync(for listName: String) async {
         guard let calendar = store.calendars(for: .reminder).first(where: { $0.title == listName }) else {
             tasks = []
@@ -131,10 +119,8 @@ class RemindersManager {
 
         do {
     #if compiler(>=5.9) && canImport(EventKit) && (!os(macOS) || targetEnvironment(macCatalyst) || swift(>=6.0))
-            // 将来の SDK で利用可能になる async API
             let ekReminders = try await store.reminders(matching: predicate)
     #else
-            // 旧 API fetchReminders を async ラップ
             let ekReminders = try await withCheckedThrowingContinuation { cont in
                 store.fetchReminders(matching: predicate) { result in
                     if let result {
@@ -161,8 +147,6 @@ class RemindersManager {
         }
     }
 
-    // MARK: - 旧インターフェース互換ラッパー
-    /// 既存ビュー用：非同期で取得後に completion に返す
     func fetchTasks(for listName: String,
                     completion: @escaping ([TaskItem]) -> Void = { _ in }) {
         Task {
@@ -171,7 +155,6 @@ class RemindersManager {
         }
     }
 
-    // MARK: - CRUD
     func addTask(title: String) {
         guard let calendar = store.calendars(for: .reminder).first(where: { $0.title == selectedList }) else { return }
         let reminder = EKReminder(eventStore: store)
@@ -202,7 +185,19 @@ class RemindersManager {
             Task { await fetchTasksAsync(for: selectedList) }
         } catch { print("Failed to remove reminder: \(error)") }
     }
+    
+    func renameTask(_ task: TaskItem, to newName: String) {
+        guard let reminder = store.calendarItem(withIdentifier: task.id) as? EKReminder else { return }
+        reminder.title = newName
+        do {
+            try store.save(reminder, commit: true)
+            Task { await fetchReminderLists(); await fetchTasksAsync(for: selectedList) }
+        } catch {
+            print("Failed to rename reminder: \(error)")
+        }
+    }
 }
+
 
 #if DEBUG
 struct RemindersManager_Previews: PreviewProvider {

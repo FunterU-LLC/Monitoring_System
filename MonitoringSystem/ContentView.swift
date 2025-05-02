@@ -1,5 +1,7 @@
+//ContentView.swift
 import SwiftUI
 import AppKit
+import ObjectiveC.runtime
 
 enum MainButtonFocus: Int, CaseIterable {
     case additionalReport
@@ -76,12 +78,25 @@ struct FocusableButtonStyle: ButtonStyle {
     let isEnabled: Bool
     
     func makeBody(configuration: Configuration) -> some View {
-        let bgColor = !isEnabled
-            ? Color.gray.opacity(0.3)
-            : (isFocused ? Color.blue : Color.white)
-        let fgColor = !isEnabled
-            ? Color.gray
-            : (isFocused ? Color.white : Color.black)
+        let bgColor: Color = {
+            if !isEnabled {
+                return Color(nsColor: .controlBackgroundColor).opacity(0.3)
+            } else if isFocused {
+                return Color.accentColor
+            } else {
+                return Color(nsColor: .controlBackgroundColor)
+            }
+        }()
+        
+        let fgColor: Color = {
+            if !isEnabled {
+                return Color.secondary
+            } else if isFocused {
+                return Color.white
+            } else {
+                return Color.primary
+            }
+        }()
         
         return configuration.label
             .padding()
@@ -91,7 +106,7 @@ struct FocusableButtonStyle: ButtonStyle {
             .cornerRadius(8)
             .overlay(
                 RoundedRectangle(cornerRadius: 8)
-                    .stroke(Color.black, lineWidth: 1)
+                    .stroke(Color(nsColor: .separatorColor), lineWidth: 1)
                     .allowsHitTesting(false)
             )
             .shadow(color: isFocused ? .black.opacity(0.4) : .clear,
@@ -143,8 +158,8 @@ struct ContentView: View {
     @Bindable var bindableCoordinator: PopupCoordinator
     @State private var showManagement = false
     @State private var showCameraTestTab = false
+    @State private var parentWindowSize: CGSize = .zero
         
-    // 初期化時にbindableCoordinatorを受け取る
     init(bindableCoordinator: PopupCoordinator) {
         self.bindableCoordinator = bindableCoordinator
     }
@@ -209,7 +224,7 @@ struct ContentView: View {
                         Spacer()
                         
                         Button("マネジメント") {
-                            showManagement = true
+                            openManagement()
                         }
                         .disabled(false)
                         .buttonStyle(FocusableButtonStyle(
@@ -238,6 +253,8 @@ struct ContentView: View {
                     }
                 }
             }
+            .overlay(WindowMinSizeEnforcer(minWidth: 800, minHeight: 600)
+                     .allowsHitTesting(false))
             .frame(width: geo.size.width, height: geo.size.height)
             .overlay(
                 KeyboardMonitorView { event in
@@ -245,6 +262,12 @@ struct ContentView: View {
                 }
                 .allowsHitTesting(false)
             )
+            .onAppear {
+                parentWindowSize = geo.size
+            }
+            .onChange(of: geo.size) { _, newSize in
+                parentWindowSize = newSize
+            }
         }
         .sheet(isPresented: $bindableCoordinator.showTaskStartPopup) {
             TaskStartPopupView(
@@ -255,7 +278,16 @@ struct ContentView: View {
             )
         }
         .sheet(isPresented: $showManagement) {
+            let targetWidth  = min(max(parentWindowSize.width, 400), 900)
+            let targetHeight = max(parentWindowSize.height, 600)
+            
             ManagementView(appUsageManager: _appUsageManager)
+                .frame(minWidth:  targetWidth,
+                       idealWidth: targetWidth,
+                       maxWidth:   targetWidth,
+                       minHeight:  targetHeight,
+                       idealHeight: targetHeight,
+                       maxHeight:  targetHeight)
         }
         .sheet(isPresented: $showCameraTestTab) {
             CameraTestTabView()
@@ -282,10 +314,17 @@ struct ContentView: View {
         case .start:
             popupCoordinator.showTaskStartPopup = true
         case .management:
-            showManagement = true
+            openManagement()
         case .cameraTest:
             showCameraTestTab = true
         }
+    }
+    
+    private func openManagement() {
+        if let window = NSApp.keyWindow {
+            parentWindowSize = window.frame.size
+        }
+        showManagement = true
     }
 }
 
@@ -298,12 +337,70 @@ struct AdDummyView: View {
     }
 }
 
-//#if DEBUG
-//struct ContentView_Previews: PreviewProvider {
-//    static var previews: some View {
-//        ContentView()
-//            .environment(PopupCoordinator())
-//            .frame(width: 800, height: 600)
-//    }
-//}
-//#endif
+struct WindowMinSizeEnforcer: NSViewRepresentable {
+    let minWidth:  CGFloat
+    let minHeight: CGFloat
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        DispatchQueue.main.async {
+            guard let win = view.window else { return }
+            let delegate = MinSizeDelegate(minW: minWidth, minH: minHeight,
+                                           previous: win.delegate)
+            win.delegate = delegate
+            objc_setAssociatedObject(win, &MinSizeDelegate.key,
+                                     delegate, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
+            enforce(window: win)
+        }
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        if let win = nsView.window { enforce(window: win) }
+    }
+
+    private func enforce(window: NSWindow) {
+        let size = window.frame.size
+        let minW = max(size.width,  minWidth )
+        let minH = max(size.height, minHeight)
+        if size.width < minWidth || size.height < minHeight {
+            var frame = window.frame
+            frame.size = NSSize(width: minW, height: minH)
+            window.setFrame(frame, display: true, animate: false)
+        }
+        window.minSize = NSSize(width: minWidth, height: minHeight)
+        window.contentMinSize = window.minSize
+    }
+
+    private final class MinSizeDelegate: NSObject, NSWindowDelegate {
+        static var key = 0 // objc キー
+        let minW: CGFloat
+        let minH: CGFloat
+        weak var previous: NSWindowDelegate?
+
+        init(minW: CGFloat, minH: CGFloat, previous: NSWindowDelegate?) {
+            self.minW = minW; self.minH = minH; self.previous = previous
+        }
+
+        func windowWillResize(_ sender: NSWindow,
+                              to frameSize: NSSize) -> NSSize {
+            var size = frameSize
+            size.width  = max(size.width,  minW)
+            size.height = max(size.height, minH)
+            
+            if let s = previous?.windowWillResize?(sender, to: size) {
+                size.width  = max(size.width,  s.width)
+                size.height = max(size.height, s.height)
+            }
+            return size
+        }
+
+        override func responds(to aSelector: Selector!) -> Bool {
+            return super.responds(to: aSelector) ||
+                   (previous?.responds(to: aSelector) ?? false)
+        }
+        override func forwardingTarget(for aSelector: Selector!) -> Any? {
+            return previous?.responds(to: aSelector) == true ? previous : nil
+        }
+    }
+}

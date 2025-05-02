@@ -28,6 +28,7 @@
 		4AE98C9F2D50E1FF00CFA135 /* CameraPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AE98C9E2D50E1FF00CFA135 /* CameraPreviewView.swift */; };
 		4AE98CA12D50E21600CFA135 /* CameraTestTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AE98CA02D50E21600CFA135 /* CameraTestTabView.swift */; };
 		4AE98CA72D53952800CFA135 /* PopupCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AE98CA62D53952800CFA135 /* PopupCoordinator.swift */; };
+		D0125BEC2DBD145200161E82 /* AppColorManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0125BEB2DBD145200161E82 /* AppColorManager.swift */; };
 		D08475402DB8E39B00462E88 /* SessionDataModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D084753F2DB8E39B00462E88 /* SessionDataModel.swift */; };
 /* End PBXBuildFile section */
 
@@ -74,6 +75,7 @@
 		4AE98C9E2D50E1FF00CFA135 /* CameraPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraPreviewView.swift; sourceTree = "<group>"; };
 		4AE98CA02D50E21600CFA135 /* CameraTestTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraTestTabView.swift; sourceTree = "<group>"; };
 		4AE98CA62D53952800CFA135 /* PopupCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PopupCoordinator.swift; sourceTree = "<group>"; };
+		D0125BEB2DBD145200161E82 /* AppColorManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppColorManager.swift; sourceTree = "<group>"; };
 		D084753F2DB8E39B00462E88 /* SessionDataModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionDataModel.swift; sourceTree = "<group>"; };
 		D08A12FE2DB5D73F00D47101 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -133,6 +135,7 @@
 				4AE98C902D50E13E00CFA135 /* AppUsageManager.swift */,
 				4AE98C942D50E17F00CFA135 /* ContentView.swift */,
 				4AB0FFC42D48C9ED00A3CD5C /* ManagementView.swift */,
+				D0125BEB2DBD145200161E82 /* AppColorManager.swift */,
 				4AE98C962D50E19200CFA135 /* TaskStartPopupView.swift */,
 				4AE98C982D50E1AE00CFA135 /* WorkInProgressView.swift */,
 				4AE98C9A2D50E1C300CFA135 /* FinishTaskPopupView.swift */,
@@ -267,6 +270,7 @@
 			);
 			mainGroup = 4AB0FF7B2D47619400A3CD5C;
 			packageReferences = (
+				D0125BFC2DC30AB800161E82 /* XCRemoteSwiftPackageReference "supabase-swift" */,
 			);
 			productRefGroup = 4AB0FF852D47619400A3CD5C /* Products */;
 			projectDirPath = "";
@@ -323,6 +327,7 @@
 				4AE98C912D50E13E00CFA135 /* AppUsageManager.swift in Sources */,
 				4AB0FF882D47619400A3CD5C /* MonitoringSystemApp.swift in Sources */,
 				4AE98C952D50E17F00CFA135 /* ContentView.swift in Sources */,
+				D0125BEC2DBD145200161E82 /* AppColorManager.swift in Sources */,
 				4AC720CD2DB25DB20018A744 /* SessionDataStore.swift in Sources */,
 				4AE98C8D2D50E10C00CFA135 /* FaceRecognitionManager.swift in Sources */,
 				4AE98CA72D53952800CFA135 /* PopupCoordinator.swift in Sources */,
@@ -654,6 +659,17 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		D0125BFC2DC30AB800161E82 /* XCRemoteSwiftPackageReference "supabase-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/supabase/supabase-swift.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.5.1;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
 	};
 	rootObject = 4AB0FF7C2D47619400A3CD5C /* Project object */;
 }

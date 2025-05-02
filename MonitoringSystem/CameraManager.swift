@@ -1,16 +1,14 @@
+//CameraManager.swift
 import Observation
 import Foundation
 import AVFoundation
 import Vision
 
-@MainActor                 // ★ 追加
+@MainActor
 @Observable
 class CameraManager: NSObject {
-
-    // 外部バインド用
     var faceDetected: Bool = false
 
-    // AVCapture 構成
     let captureSession = AVCaptureSession()
     private let videoOutput = AVCaptureVideoDataOutput()
 
@@ -19,7 +17,6 @@ class CameraManager: NSObject {
         configureSession()
     }
 
-    // ────────── セッション構築 ──────────
     private func configureSession() {
         guard let device = AVCaptureDevice.default(for: .video) else {
             print("カメラデバイスが見つかりません。"); return
@@ -38,12 +35,10 @@ class CameraManager: NSObject {
         }
     }
 
-    // ────────── セッション制御 ──────────
     func startSession() { if !captureSession.isRunning { captureSession.startRunning() } }
     func stopSession()  { if  captureSession.isRunning { captureSession.stopRunning() } }
 }
 
-// MARK: - AVCaptureVideoDataOutputSampleBufferDelegate
 extension CameraManager: AVCaptureVideoDataOutputSampleBufferDelegate {
 
     nonisolated func captureOutput(_ output: AVCaptureOutput,

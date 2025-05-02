@@ -1,7 +1,7 @@
+//CameraTestTabView.swift
 import SwiftUI
 
 struct CameraTestTabView: View {
-    // @Environment に変更
     @Environment(CameraManager.self) var cameraManager
     @Environment(\.presentationMode) var presentationMode
     
@@ -11,7 +11,6 @@ struct CameraTestTabView: View {
                 .foregroundColor(cameraManager.faceDetected ? .green : .red)
                 .padding()
             
-            // CameraManager を明示的に渡す
             CameraPreviewView(cameraManager: cameraManager)
                 .frame(width: 400, height: 300)
             
@@ -36,14 +35,3 @@ struct CameraTestTabView: View {
         }
     }
 }
-
-#if DEBUG
-struct CameraTestTabView_Previews: PreviewProvider {
-    static var previews: some View {
-        CameraTestTabView()
-            .environment(CameraManager())
-            .frame(width: 500, height: 400)
-    }
-}
-#endif
-

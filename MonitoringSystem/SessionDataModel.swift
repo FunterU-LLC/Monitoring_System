@@ -1,6 +1,4 @@
-//
-//  SessionDataModel.swift
-//
+//SessionDataModel.swift
 import Foundation
 import SwiftData
 
@@ -17,15 +15,31 @@ final class AppUsageModel {
 
 @Model
 final class TaskUsageSummaryModel {
-    var taskName: String
+    var reminderId: String
+    var taskName:   String
+    var isCompleted: Bool
+    var startTime:   Date
+    var endTime:     Date
     var totalSeconds: Double
+    var comment: String?
     @Relationship(deleteRule: .cascade) var appBreakdown: [AppUsageModel] = []
 
-    init(taskName: String,
+    init(reminderId:   String,
+         taskName:     String,
+         isCompleted:  Bool,
+         startTime:    Date,
+         endTime:      Date,
          totalSeconds: Double,
+         comment:      String? = nil,
          appBreakdown: [AppUsageModel] = []) {
+
+        self.reminderId   = reminderId
         self.taskName     = taskName
+        self.isCompleted  = isCompleted
+        self.startTime    = startTime
+        self.endTime      = endTime
         self.totalSeconds = totalSeconds
+        self.comment      = comment
         self.appBreakdown = appBreakdown
     }
 }
@@ -33,17 +47,16 @@ final class TaskUsageSummaryModel {
 @Model
 final class SessionRecordModel {
     @Attribute(.unique) var id: UUID
-    var date: Date
+    var endTime: Date
     @Relationship(deleteRule: .cascade) var taskSummaries: [TaskUsageSummaryModel] = []
     var completedCount: Int
-
-    init(date: Date,
+    
+    init(endTime: Date,
          taskSummaries: [TaskUsageSummaryModel] = [],
          completedCount: Int) {
-        self.id             = UUID()
-        self.date           = date
-        self.taskSummaries  = taskSummaries
+        self.id            = UUID()
+        self.endTime       = endTime
+        self.taskSummaries = taskSummaries
         self.completedCount = completedCount
     }
 }
-

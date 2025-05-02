@@ -1,8 +1,4 @@
-//
-//  Models.swift
-//  MonitoringSystemApp
-//
-
+//Models.swift
 import SwiftUI
 
 struct User: Identifiable {
@@ -39,13 +35,36 @@ struct AppUsage: Identifiable, Codable {
     let id: UUID = .init()
     let name: String
     let seconds: Double
+    
+    private enum CodingKeys: String, CodingKey {
+        case name
+        case seconds
+    }
 }
 
 struct TaskUsageSummary: Identifiable, Codable {
     let id: UUID = .init()
-    let taskName: String
+    let reminderId: String
+    let taskName:   String
+    var isCompleted: Bool
+    var startTime:   Date
+    var endTime:     Date
     var totalSeconds: Double
+    var comment: String?
     var appBreakdown: [AppUsage]
+
+    private enum CodingKeys: String, CodingKey {
+        case reminderId, taskName,
+             isCompleted, startTime, endTime,
+             totalSeconds, comment, appBreakdown
+    }
+}
+
+struct TaskAppBarDatum: Identifiable {
+    let id = UUID()
+    let taskName: String
+    let appName:  String
+    let seconds:  Double
 }
 
 struct TaskRowView: View {
@@ -95,4 +114,3 @@ struct TaskRowView: View {
         else { selectedTaskIds.insert(id) }
     }
 }
-

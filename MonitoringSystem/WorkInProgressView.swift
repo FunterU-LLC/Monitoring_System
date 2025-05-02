@@ -1,3 +1,4 @@
+//WorkInProgressView.swift
 import AppKit
 import SwiftUI
 
@@ -12,7 +13,6 @@ struct WorkInProgressView: View {
     
     let selectedTaskIds: [String]
         
-    // イニシャライザは selectedTaskIds のみを受け取るように変更
     init(selectedTaskIds: [String]) {
         self.selectedTaskIds = selectedTaskIds
     }
@@ -137,7 +137,7 @@ struct WorkInProgressView: View {
                     }
                     .padding(30)
                     .frame(minWidth: 400, minHeight: 200)
-                    .background(Color.white)
+                    .background(Color(NSColor.windowBackgroundColor))
                     .cornerRadius(12)
                 }
             },
@@ -174,16 +174,6 @@ struct WorkInProgressView: View {
                                 startTime: Date(),
                                 endTime: Date())
         Task { await SupabaseManager.shared.sendAttendanceLog(log) }
-    }
-    
-    func checkFrontmostApp() {
-        if let frontApp = NSWorkspace.shared.frontmostApplication {
-            let appName = frontApp.localizedName ?? "UnknownApp"
-            let bundleId = frontApp.bundleIdentifier ?? "UnknownBundle"
-            print("最前面アプリ: \(appName), bundleId: \(bundleId)")
-        } else {
-            print("最前面アプリを取得できませんでした")
-        }
     }
 }
 

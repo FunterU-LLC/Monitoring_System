@@ -1,3 +1,4 @@
+//FinishTaskPopupView.swift
 import SwiftUI
 import AppKit
 
@@ -11,7 +12,7 @@ struct FinishTaskPopupView: View {
     
     @State private var tasksToFinish: [TaskItem] = []
     @State private var completedTasks: Set<String> = []
-    @State private var comment: String = ""
+    @State private var comments: [String: String] = [:]
     
     @State private var currentIndex: Int = 0
     @State private var pressedIndex: Int? = nil
@@ -21,6 +22,9 @@ struct FinishTaskPopupView: View {
             
             Text("作業完了するタスクを選択")
                 .font(.headline)
+            Text("未達成のタスクでもコメントを入力できます")
+                .font(.caption)
+                .foregroundColor(.secondary)
             
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
@@ -61,18 +65,32 @@ struct FinishTaskPopupView: View {
                         .transition(.slide)
 
                         Divider()
+                        TextEditor(
+                            text: Binding(
+                                get: { comments[task.id, default: ""] },
+                                set: { comments[task.id] = $0 }
+                            )
+                        )
+                        .frame(height: 70)
+                        .border(Color.gray.opacity(0.4))
+                        .overlay(
+                            Group {
+                                if comments[task.id, default: ""].isEmpty {
+                                    Text("コメントを入力してください(任意)")
+                                        .foregroundColor(.secondary)
+                                        .padding(.leading, 6)
+                                        .padding(.top, 8)
+                                }
+                            },
+                            alignment: .topLeading
+                        )
+                        .padding(.bottom, 8)
                     }
                 }
                 .animation(.easeInOut, value: tasksToFinish.map(\.id))
                 .padding(.horizontal, 8)
             }
             .frame(minHeight: 200)
-            
-            Text("コメント(複数行)")
-                .font(.subheadline)
-            TextEditor(text: $comment)
-                .border(Color.gray, width: 1)
-                .frame(height: 80)
             
             HStack {
                 Button("キャンセル") {
@@ -85,18 +103,45 @@ struct FinishTaskPopupView: View {
                 Button("タスク未達成") {
                     let totalRecognized = faceRecognitionManager.endRecognitionSession()
                     let usageDict = appUsageManager.snapshotRecognizedUsage()
-                    let appBreak = usageDict.map { AppUsage(name: $0.key, seconds: $0.value) }
 
-                    let summary = TaskUsageSummary(taskName: "Unfinished",
-                                                   totalSeconds: totalRecognized,
-                                                   appBreakdown: appBreak)
-                    Task { await SessionDataStore.shared.appendSession(tasks: [summary], completed: 0) }
+                    let perTaskSeconds: Double = {
+                        if tasksToFinish.isEmpty { 0 } else { totalRecognized / Double(tasksToFinish.count) }
+                    }()
+                    let now = Date()
+                    let summaries: [TaskUsageSummary] = tasksToFinish.map { task in
+                        let isDone = completedTasks.contains(task.id)
+                        let st = now.addingTimeInterval(-perTaskSeconds)
+                        let note = comments[task.id]
+                        let apps: [AppUsage] = usageDict.isEmpty
+                            ? appUsageManager.currentRecognizedAppUsageArray()
+                            : usageDict.map { AppUsage(name: $0.key, seconds: $0.value / Double(max(tasksToFinish.count,1))) }
+
+                        let totalSec = apps.reduce(0) { $0 + $1.seconds }
+
+                        return TaskUsageSummary(reminderId: task.id,
+                                                taskName:   task.title,
+                                                isCompleted: isDone,
+                                                startTime:   st,
+                                                endTime:     now,
+                                                totalSeconds: totalSec,
+                                                comment:      note,
+                                                appBreakdown: apps)
+                    }
+                    Task { await SessionDataStore.shared.appendSession(tasks: summaries, completed: 0) }
                     appUsageManager.clearRecognizedUsage()
+
+                    for task in tasksToFinish {
+                        if let note = comments[task.id], !note.isEmpty {
+                            remindersManager.updateTask(task, completed: false, notes: note)
+                        }
+                    }
 
                     faceRecognitionManager.stopCamera()
                     appUsageManager.stopWork()
                     appUsageManager.calculateAggregatedUsage()
                     appUsageManager.printRecognizedAppUsage()
+                    
+                    appUsageManager.saveCurrentUsageToDataStore()
 
                     popupCoordinator.showFinishPopup = false
                     popupCoordinator.showWorkInProgress = false
@@ -111,29 +156,21 @@ struct FinishTaskPopupView: View {
                 Button("完了") {
                     
                     let totalRecognized = faceRecognitionManager.endRecognitionSession()
-                    let numberOfTasks = tasksToFinish.count
-                    if numberOfTasks > 0 {
-                        let perTask = totalRecognized / Double(numberOfTasks)
-                        print("----- 作業時間計測結果 -----")
-                        print("合計で \(totalRecognized) 秒 顔を検出。")
-                        print("選択中タスク数 = \(numberOfTasks)。各タスク = \(perTask) 秒として記録。")
-                    } else {
-                        print("タスクが0件。計 \(totalRecognized) 秒計測しましたが割り当て先なし。")
-                    }
-                    
-                    appUsageManager.printRecognizedAppUsage()
-                    
-                    for tId in completedTasks {
-                        if let task = tasksToFinish.first(where: { $0.id == tId }) {
-                            remindersManager.updateTask(task, completed: true, notes: comment)
-                        }
-                    }
-                    
-                    faceRecognitionManager.stopCamera()
                     let usageDict = appUsageManager.snapshotRecognizedUsage()
                     let totalAppSeconds = usageDict.values.reduce(0, +)
                     appUsageManager.stopWork()
                     appUsageManager.calculateAggregatedUsage()
+                    
+                    appUsageManager.printRecognizedAppUsage()
+                    appUsageManager.saveCurrentUsageToDataStore()
+                    
+                    for task in tasksToFinish {
+                        let isDone = completedTasks.contains(task.id)
+                        let note   = comments[task.id]
+                        remindersManager.updateTask(task, completed: isDone, notes: note)
+                    }
+                    
+                    faceRecognitionManager.stopCamera()
                     
                     let perTaskSeconds: Double = {
                         if totalRecognized > 0 {
@@ -143,30 +180,52 @@ struct FinishTaskPopupView: View {
                         }
                     }()
 
+                    let now = Date()
                     let summaries: [TaskUsageSummary] = tasksToFinish.map { task in
-                        let apps: [AppUsage] = usageDict.map { name, sec in
-                            let seconds: Double
-                            if totalRecognized > 0 && totalAppSeconds > 0 {
-                                seconds = (sec / totalAppSeconds) * perTaskSeconds
+                        let isDone = completedTasks.contains(task.id)
+                        
+                        let note = comments[task.id]
+                        let apps: [AppUsage] = {
+                            if !usageDict.isEmpty {
+                                return usageDict.map { name, sec in
+                                    let seconds: Double
+                                    if totalRecognized > 0 && totalAppSeconds > 0 {
+                                        seconds = (sec / totalAppSeconds) * perTaskSeconds
+                                    } else {
+                                        seconds = sec / Double(max(tasksToFinish.count, 1))
+                                    }
+                                    return AppUsage(name: name, seconds: seconds)
+                                }
                             } else {
-                                seconds = sec / Double(max(tasksToFinish.count, 1))
+                                let current = appUsageManager.currentRecognizedAppUsageArray()
+                                return current.map { app in
+                                    AppUsage(name: app.name,
+                                             seconds: app.seconds / Double(max(tasksToFinish.count, 1)))
+                                }
                             }
-                            return AppUsage(name: name, seconds: seconds)
-                        }
-                        
+                        }()
+
                         let totalSec = apps.reduce(0) { $0 + $1.seconds }
-                        
-                        return TaskUsageSummary(taskName: task.title,
-                                                totalSeconds: totalSec,
-                                                appBreakdown: apps)
+                        let start   = now.addingTimeInterval(-perTaskSeconds)
+
+                        return TaskUsageSummary(
+                            reminderId:  task.id,
+                            taskName:    task.title,
+                            isCompleted: isDone,
+                            startTime:   start,
+                            endTime:     now,
+                            totalSeconds: totalSec,
+                            comment:      note,
+                            appBreakdown: apps
+                        )
                     }
-                    appUsageManager.clearRecognizedUsage()
-                    Task { await SessionDataStore.shared.appendSession(tasks: summaries,
-                                                                       completed: completedTasks.count) }
-                    
-                    popupCoordinator.showFinishPopup = false
-                    popupCoordinator.showWorkInProgress = false
-                    popupCoordinator.showTaskStartPopup = false
+                        appUsageManager.clearRecognizedUsage()
+                        Task { await SessionDataStore.shared.appendSession(tasks: summaries,
+                                                                           completed: completedTasks.count) }
+                        
+                        popupCoordinator.showFinishPopup = false
+                        popupCoordinator.showWorkInProgress = false
+                        popupCoordinator.showTaskStartPopup = false
                 }
                 
                 .disabled(completedTasks.isEmpty)
@@ -247,13 +306,3 @@ struct FinishTaskPopupView: View {
         }
     }
 }
-
-extension FinishTaskPopupView {
-    private func fallbackFrontmostApp(seconds: Double) -> AppUsage {
-        let front = NSWorkspace.shared.frontmostApplication
-        let name  = front?.localizedName ?? "UnknownApp"
-        return AppUsage(name: name, seconds: seconds)
-    }
-
-}
-

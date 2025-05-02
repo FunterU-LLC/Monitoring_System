@@ -1,5 +1,7 @@
+//TaskStartPopupView.swift
 import AppKit
 import SwiftUI
+import Combine
 
 struct TaskStartPopupView: View {
     @Environment(RemindersManager.self) var remindersManager
@@ -19,6 +21,9 @@ struct TaskStartPopupView: View {
     @State private var showStartAlert: Bool = false
     @State private var isCancelDefaultForStart: Bool = true
     @State private var reminderAccessError: String? = nil
+    @State private var reminderSubscriptions: Set<AnyCancellable> = []
+    @State private var showReminderSettingsPrompt = false
+    @State private var showCameraSettingsPrompt = false
 
     var body: some View {
         VStack(alignment: .leading) {
@@ -56,6 +61,32 @@ struct TaskStartPopupView: View {
         .onAppear {
             setupNotifications()
             loadInitialData()
+            if remindersManager.accessStatus == .denied {
+                showReminderSettingsPrompt = true
+            }
+        }
+        .onChange(of: remindersManager.accessStatus) { _, newValue in
+            if newValue == .denied {
+                showReminderSettingsPrompt = true
+            }
+        }
+        .alert(
+            "リマインダーへのアクセスが必要です",
+            isPresented: $showReminderSettingsPrompt
+        ) {
+            Button("設定を開く") { openReminderSettings() }
+            Button("後で") { showReminderSettingsPrompt = false }
+        } message: {
+            Text("タスク一覧を取得するには、システム設定 › プライバシーとセキュリティ › リマインダー で本アプリを許可してください。")
+        }
+        .alert(
+            "カメラへのアクセスが必要です",
+            isPresented: $showCameraSettingsPrompt
+        ) {
+            Button("設定を開く") { openCameraSettings() }
+            Button("後で") { showCameraSettingsPrompt = false }
+        } message: {
+            Text("顔認識による在席検知を行うには、システム設定 › プライバシーとセキュリティ › カメラ で本アプリを許可してください。")
         }
         .overlay(deleteAlertOverlay)
         .overlay(startAlertOverlay)
@@ -83,7 +114,7 @@ struct TaskStartPopupView: View {
             }
         }
         .pickerStyle(MenuPickerStyle())
-        .onChange(of: remindersManager.selectedList) { newList in
+        .onChange(of: remindersManager.selectedList) { _, newList in
             handleListSelection(newList)
         }
     }
@@ -253,7 +284,7 @@ struct TaskStartPopupView: View {
                     }
                     .padding(30)
                     .frame(width: 450)
-                    .background(Color.white)
+                    .background(Color(NSColor.windowBackgroundColor))
                     .cornerRadius(12)
                 }
             }
@@ -329,7 +360,7 @@ struct TaskStartPopupView: View {
                     }
                     .padding(30)
                     .frame(width: 450)
-                    .background(Color.white)
+                    .background(Color(NSColor.windowBackgroundColor))
                     .cornerRadius(12)
                 }
             }
@@ -395,7 +426,6 @@ struct TaskStartPopupView: View {
         }
     }
     
-    // ヘルパーメソッド
     private func handleKeyDown(_ event: NSEvent) {
         if showDeleteAlert {
             if event.keyCode == 36 || event.keyCode == 76 {
@@ -468,11 +498,15 @@ struct TaskStartPopupView: View {
         currentIndex = displayedTasks.isEmpty ? 0 : min(currentIndex, displayedTasks.count - 1)
     }
     
-    private func startTaskAction() {
-        faceRecognitionManager.startCamera()
-        popupCoordinator.showWorkInProgress = true
-        appUsageManager.startWork(faceRecognitionManager: faceRecognitionManager)
+private func startTaskAction() {
+    Task {
+        await faceRecognitionManager.startCamera()
+        await MainActor.run {
+            popupCoordinator.showWorkInProgress = true
+            appUsageManager.startWork(faceRecognitionManager: faceRecognitionManager)
+        }
     }
+}
     
     private func toggleSelection(_ id: String) {
         if selectedTaskIds.contains(id) {
@@ -501,17 +535,25 @@ struct TaskStartPopupView: View {
     }
     
     private func setupNotifications() {
-        let deniedSubscription = NotificationCenter.default.publisher(for: Notification.Name("ReminderAccessDenied"))
-                .sink { _ in
-                    reminderAccessError = "リマインダーへのアクセスが拒否されています。設定アプリで権限を許可してください。"
-                }
-        let noListsSubscription = NotificationCenter.default.publisher(for: Notification.Name("NoReminderListsFound"))
+        NotificationCenter.default.publisher(for: Notification.Name("ReminderAccessDenied"))
+            .sink { _ in
+                reminderAccessError = "リマインダーへのアクセスが拒否されています。設定アプリで権限を許可してください。"
+            }
+            .store(in: &reminderSubscriptions)
+
+        NotificationCenter.default.publisher(for: Notification.Name("NoReminderListsFound"))
             .sink { _ in
                 reminderAccessError = "リマインダーリストが見つかりませんでした。リマインダーアプリでリストを作成してください。"
             }
+            .store(in: &reminderSubscriptions)
+        NotificationCenter.default.publisher(
+            for: FaceRecognitionManager.cameraAccessDeniedNotification)
+            .sink { _ in
+                showCameraSettingsPrompt = true
+            }
+            .store(in: &reminderSubscriptions)
     }
     
-    // 非同期 API 対応版
     private func loadInitialData() {
         Task {
             await remindersManager.fetchReminderLists()
@@ -527,6 +569,16 @@ struct TaskStartPopupView: View {
             remindersManager.fetchTasks(for: remindersManager.selectedList) { newTasks in
                 updateDisplayedTasks(newTasks)
             }
+        }
+    }
+    private func openReminderSettings() {
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Reminders") {
+            NSWorkspace.shared.open(url)
+        }
+    }
+    private func openCameraSettings() {
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Camera") {
+            NSWorkspace.shared.open(url)
         }
     }
 }

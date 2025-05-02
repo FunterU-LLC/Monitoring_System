@@ -1,3 +1,4 @@
+//FaceRecognitionManager.swift
 import Observation
 import AVFoundation
 import AppKit
@@ -7,12 +8,12 @@ import Vision
 @MainActor
 @Observable
 class FaceRecognitionManager: NSObject {
+    
+    static let cameraAccessDeniedNotification = Notification.Name("CameraAccessDenied")
 
-    // ────────── 監視状態 ──────────
     var isFaceDetected: Bool = true
     var lastFaceDetectedTime: Date = Date()
 
-    @MainActor(unsafe) private var absenceCheckTask: Task<Void, Never>?   // ← Timer→Task
     private let absenceThreshold: TimeInterval = 3
 
     private var bounceRequestID: Int? = nil
@@ -20,7 +21,6 @@ class FaceRecognitionManager: NSObject {
     private var faceDetectStart: Date? = nil
     private var isSessionActive: Bool = false
 
-    // ────────── セッション制御 ──────────
     func startRecognitionSession() {
         sessionRecognizedTime = 0
         faceDetectStart = nil
@@ -38,14 +38,23 @@ class FaceRecognitionManager: NSObject {
         return sessionRecognizedTime
     }
 
-    // ────────── カメラ & Vision ──────────
     private let captureSession = AVCaptureSession()
     private let videoOutput   = AVCaptureVideoDataOutput()
 
     override init() { super.init() }
-    deinit { absenceCheckTask?.cancel() }
+    
+    private final class TaskHolder {
+        var task: Task<Void, Never>?
+    }
+        
+    private let absenceTaskHolder = TaskHolder()
+        
+    deinit {
+        absenceTaskHolder.task?.cancel()
+    }
 
-    func startCamera() {
+    func startCamera() async {
+        guard await ensureCameraPermission() else { return }
         configureSession()
         startSession()
         startAbsenceCheck()
@@ -53,8 +62,8 @@ class FaceRecognitionManager: NSObject {
 
     func stopCamera() {
         stopSession()
-        absenceCheckTask?.cancel()
-        absenceCheckTask = nil
+        absenceTaskHolder.task?.cancel()
+        absenceTaskHolder.task = nil
     }
 
     private func configureSession() {
@@ -79,11 +88,11 @@ class FaceRecognitionManager: NSObject {
 
     private func startSession() { if !captureSession.isRunning { captureSession.startRunning() } }
     private func stopSession()  { if  captureSession.isRunning { captureSession.stopRunning() } }
+    
 
-    // ────────── 不在チェック ──────────
     private func startAbsenceCheck() {
-        absenceCheckTask?.cancel()
-        absenceCheckTask = Task.detached { [weak self] in
+        absenceTaskHolder.task?.cancel()
+        absenceTaskHolder.task = Task.detached { [weak self] in
             guard let self else { return }
             while !Task.isCancelled {
                 if await !self.isFaceDetected {
@@ -112,9 +121,28 @@ class FaceRecognitionManager: NSObject {
                                             trigger: nil)
         try? await center.add(request)
     }
+    private func ensureCameraPermission() async -> Bool {
+        switch AVCaptureDevice.authorizationStatus(for: .video) {
+        case .authorized:
+            return true
+        case .notDetermined:
+            let granted = await withCheckedContinuation { cont in
+                AVCaptureDevice.requestAccess(for: .video) { cont.resume(returning: $0) }
+            }
+            if !granted {
+                NotificationCenter.default.post(
+                    name: Self.cameraAccessDeniedNotification, object: nil)
+            }
+            return granted
+        default:
+            NotificationCenter.default.post(
+                name: Self.cameraAccessDeniedNotification, object: nil)
+            return false
+        }
+    }
 }
 
-// ────────── AVCaptureVideoDataOutputSampleBufferDelegate ──────────
+
 extension FaceRecognitionManager: AVCaptureVideoDataOutputSampleBufferDelegate {
 
     nonisolated func captureOutput(_ output: AVCaptureOutput,
@@ -130,6 +158,9 @@ extension FaceRecognitionManager: AVCaptureVideoDataOutputSampleBufferDelegate {
                 Task { @MainActor in
                     self.isFaceDetected = true
                     self.lastFaceDetectedTime = Date()
+                    NotificationCenter.default.post(name: Notification.Name("FaceDetectionChanged"),
+                                                    object: nil,
+                                                    userInfo: ["isDetected": self.isFaceDetected])
                     if self.isSessionActive, self.faceDetectStart == nil {
                         self.faceDetectStart = Date()
                     }
@@ -141,6 +172,9 @@ extension FaceRecognitionManager: AVCaptureVideoDataOutputSampleBufferDelegate {
             } else {
                 Task { @MainActor in
                     self.isFaceDetected = false
+                    NotificationCenter.default.post(name: Notification.Name("FaceDetectionChanged"),
+                                                    object: nil,
+                                                    userInfo: ["isDetected": self.isFaceDetected])
                     if self.isSessionActive, let start = self.faceDetectStart {
                         let delta = Date().timeIntervalSince(start)
                         self.sessionRecognizedTime += delta
@@ -154,4 +188,3 @@ extension FaceRecognitionManager: AVCaptureVideoDataOutputSampleBufferDelegate {
         try? handler.perform([request])
     }
 }
-

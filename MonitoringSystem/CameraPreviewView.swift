@@ -1,8 +1,8 @@
+//CameraPreviewView.swift
 import SwiftUI
 import AVFoundation
 
 struct CameraPreviewView: NSViewRepresentable {
-    // @ObservedObject は削除するだけでOK
     var cameraManager: CameraManager
     
     func makeNSView(context: Context) -> NSView {

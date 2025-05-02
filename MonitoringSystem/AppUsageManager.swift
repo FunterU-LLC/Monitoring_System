@@ -1,4 +1,5 @@
-import Combine          // AnyCancellable を使うために残す
+//AppUsageManager.swift
+import Combine
 import Observation
 import AppKit
 import SwiftUI
@@ -11,14 +12,13 @@ struct AggregatedUsage: Identifiable {
 
 @Observable
 class AppUsageManager: NSObject {
-    // ────────── 公開プロパティ ──────────
     var logs: [AppUsageLog] = []
     var aggregatedResults: [AggregatedUsage] = []
 
-    // ────────── 内部状態 ──────────
-    private var currentApp: String      = ""
-    private var currentStartTime: Date  = Date()
-    private var isTracking:    Bool     = false
+    private var currentAppBundleId: String = ""
+    private var currentAppName:      String = ""
+    private var currentStartTime:    Date   = Date()
+    private var isTracking:          Bool   = false
 
     private var recognizedAppUsage: [String: TimeInterval] = [:]
     private var currentRecognizedApp: String? = nil
@@ -27,16 +27,13 @@ class AppUsageManager: NSObject {
     private var faceDetected: Bool = false
     private var faceDetectCancellable: AnyCancellable?
 
-    // ────────── 初期化 / 解放 ──────────
     override init() { super.init() }
     deinit { stopWork() }
 
-    // ────────── 作業開始 ──────────
     func startWork(faceRecognitionManager: FaceRecognitionManager) {
         guard !isTracking else { return }
         isTracking = true
 
-        // 前面アプリ監視
         NSWorkspace.shared.notificationCenter.addObserver(
             self,
             selector: #selector(appDidActivate(_:)),
@@ -44,7 +41,6 @@ class AppUsageManager: NSObject {
             object: nil
         )
 
-        // 顔検出イベント購読
         faceDetectCancellable = NotificationCenter.default
             .publisher(for: Notification.Name("FaceDetectionChanged"))
             .receive(on: RunLoop.main)
@@ -56,19 +52,19 @@ class AppUsageManager: NSObject {
                          : self.stopRecognizedApp()
             }
 
-        // 現在の最前面アプリを即時取得
         if let frontApp = NSWorkspace.shared.frontmostApplication {
             let bundleId = frontApp.bundleIdentifier ?? "UnknownBundle"
             let appName  = frontApp.localizedName ?? "UnknownApp"
             print("最前面アプリ(開始時): \(appName), バンドルID: \(bundleId)")
 
-            if !currentApp.isEmpty,
-               let idx = logs.lastIndex(where: { $0.appName == currentApp && $0.endTime == nil }) {
+            if !currentAppBundleId.isEmpty,
+               let idx = logs.lastIndex(where: { $0.appName == currentAppName && $0.endTime == nil }) {
                 logs[idx].endTime = Date()
             }
 
-            currentApp      = bundleId
-            currentStartTime = Date()
+            currentAppBundleId = bundleId
+            currentAppName     = appName
+            currentStartTime   = Date()
 
             logs.append(AppUsageLog(bundleId: bundleId,
                                     appName:  appName,
@@ -80,7 +76,6 @@ class AppUsageManager: NSObject {
         }
     }
 
-    // ────────── 作業終了 ──────────
     func stopWork() {
         guard isTracking else { return }
 
@@ -90,8 +85,8 @@ class AppUsageManager: NSObject {
             object: nil
         )
 
-        if !currentApp.isEmpty,
-           let idx = logs.lastIndex(where: { $0.appName == currentApp && $0.endTime == nil }) {
+        if !currentAppName.isEmpty,
+           let idx = logs.lastIndex(where: { $0.appName == currentAppName && $0.endTime == nil }) {
             logs[idx].endTime = Date()
         }
 
@@ -100,12 +95,12 @@ class AppUsageManager: NSObject {
         faceDetected = false
 
         stopRecognizedApp()
-        isTracking     = false
-        currentApp     = ""
-        currentStartTime = Date()
+        isTracking        = false
+        currentAppBundleId = ""
+        currentAppName     = ""
+        currentStartTime   = Date()
     }
 
-    // ────────── アプリ切替通知 ──────────
     @objc private func appDidActivate(_ notification: Notification) {
         guard isTracking,
               let runningApp = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
@@ -114,17 +109,18 @@ class AppUsageManager: NSObject {
         let bundleId = runningApp.bundleIdentifier ?? "UnknownBundle"
         let appName  = runningApp.localizedName ?? "UnknownApp"
 
-        guard bundleId != currentApp else { return }
+        guard bundleId != currentAppBundleId else { return }
 
-        print("最前面アプリ: \(appName), バンドルID: \(bundleId)")
+        print("最前面: \(appName), ID: \(bundleId)")
 
-        if !currentApp.isEmpty,
-           let idx = logs.lastIndex(where: { $0.appName == currentApp && $0.endTime == nil }) {
+        if !currentAppName.isEmpty,
+           let idx = logs.lastIndex(where: { $0.appName == currentAppName && $0.endTime == nil }) {
             logs[idx].endTime = Date()
         }
 
-        currentApp      = bundleId
-        currentStartTime = Date()
+        currentAppBundleId = bundleId
+        currentAppName     = appName
+        currentStartTime   = Date()
 
         logs.append(AppUsageLog(bundleId: bundleId,
                                 appName:  appName,
@@ -135,10 +131,9 @@ class AppUsageManager: NSObject {
         if faceDetected { startRecognizedApp() }
     }
 
-    // ────────── 顔検出ありアプリ判定 ──────────
     private func startRecognizedApp() {
-        guard currentRecognizedApp == nil, !currentApp.isEmpty else { return }
-        currentRecognizedApp = currentApp
+        guard currentRecognizedApp == nil, !currentAppName.isEmpty else { return }
+        currentRecognizedApp = currentAppName
         recognizedAppStart   = Date()
     }
 
@@ -152,7 +147,6 @@ class AppUsageManager: NSObject {
         recognizedAppStart   = nil
     }
 
-    // ────────── 集計 / デバッグ ──────────
     func calculateAggregatedUsage() {
         for i in logs.indices where logs[i].endTime == nil {
             logs[i].endTime = Date()
@@ -169,25 +163,25 @@ class AppUsageManager: NSObject {
         logs.removeAll()
     }
 
+    func saveCurrentUsageToDataStore() {
+        calculateAggregatedUsage()
+        aggregatedResults.removeAll()
+    }
+    
     func printRecognizedAppUsage() {
         stopRecognizedApp()
-        print("===== 顔認識ありアプリ使用時間 =====")
-        for (app, time) in recognizedAppUsage {
-            print("\(app): \(time) 秒")
-        }
         recognizedAppUsage.removeAll()
     }
 
-    // ────────── 外部 API ──────────
     func currentRecognizedAppUsageArray() -> [AppUsage] {
         stopRecognizedApp()
         let arr = recognizedAppUsage.map { AppUsage(name: $0.key, seconds: $0.value) }
-        recognizedAppUsage.removeAll()
         return arr
     }
 
     func snapshotRecognizedUsage() -> [String: TimeInterval] {
-        stopRecognizedApp(); return recognizedAppUsage
+        stopRecognizedApp()
+        return recognizedAppUsage
     }
     func clearRecognizedUsage() { recognizedAppUsage.removeAll() }
 }
