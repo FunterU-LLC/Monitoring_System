@@ -1,4 +1,3 @@
-//AppUsageManager.swift
 import Combine
 import Observation
 import AppKit

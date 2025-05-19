@@ -1,4 +1,3 @@
-//Models.swift
 import SwiftUI
 
 struct User: Identifiable {

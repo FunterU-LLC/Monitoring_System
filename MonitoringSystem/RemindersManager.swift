@@ -1,4 +1,3 @@
-//RemindersManager.swift
 import Observation
 import EventKit
 import SwiftUI

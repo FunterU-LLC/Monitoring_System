@@ -1,4 +1,3 @@
-//AppColorManager.swift
 import SwiftUI
 
 private struct HSB: Codable {
@@ -37,7 +36,7 @@ final class AppColorManager {
         -> (hue: Double, sat: Double, bri: Double) {
 
         let hueVal = str.unicodeScalars.reduce(0) { ($0 &* 31 &+ Int($1.value)) % 360 }
-        let hue = Double(hueVal) / 360.0         // 0.0 – 1.0
+        let hue = Double(hueVal) / 360.0
 
         let len = max(1, min(str.count, 20))
         let sat = 0.55 + (Double(len % 3) * 0.1)

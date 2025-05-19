@@ -1,4 +1,3 @@
-//PopupCoordinator.swift
 import Observation
 
 @Observable

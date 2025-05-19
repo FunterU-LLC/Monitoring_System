@@ -1,4 +1,3 @@
-//FaceRecognitionManager.swift
 import Observation
 import AVFoundation
 import AppKit

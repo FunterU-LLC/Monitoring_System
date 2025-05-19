@@ -1,4 +1,3 @@
-//CameraPreviewView.swift
 import SwiftUI
 import AVFoundation
 

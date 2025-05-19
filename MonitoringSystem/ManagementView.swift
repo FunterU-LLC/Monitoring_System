@@ -1,4 +1,3 @@
-//ManagementView.swift
 import SwiftUI
 import Charts
 import EventKit
@@ -351,7 +350,6 @@ private struct TaskStackedRow: View {
                     Button {
                         toggleCompletion()
                     } label: {
-                        // TaskStackedRow 内
                         Image(systemName: task.isCompleted ? "checkmark.circle.fill"
                                                            : "xmark.circle.fill")
                             .foregroundColor(task.isCompleted ? .green : .orange)
@@ -430,8 +428,6 @@ private struct TaskStackedRow: View {
                     }
                 }
                 .frame(height: barHeight)
-                
-                // (removed HStack that displayed timestamps here)
 
                 if isExpanded {
                     HStack(alignment: .top, spacing: 32) {

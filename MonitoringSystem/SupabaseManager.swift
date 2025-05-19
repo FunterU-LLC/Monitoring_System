@@ -1,4 +1,3 @@
-//SupabaseManager.swift
 import Foundation
 import Network
 

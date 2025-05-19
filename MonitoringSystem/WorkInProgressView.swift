@@ -1,4 +1,3 @@
-//WorkInProgressView.swift
 import AppKit
 import SwiftUI
 
@@ -127,6 +126,7 @@ struct WorkInProgressView: View {
                             Button("はい") {
                                 showBackAlert = false
                                 faceRecognitionManager.stopCamera()
+                                appUsageManager.stopWork()
                                 popupCoordinator.showWorkInProgress = false
                             }
                             .buttonStyle(FocusableButtonStyle(

@@ -1,4 +1,3 @@
-//TaskStartPopupView.swift
 import AppKit
 import SwiftUI
 import Combine
@@ -92,8 +91,6 @@ struct TaskStartPopupView: View {
         .overlay(startAlertOverlay)
         .overlay(reminderErrorOverlay)
     }
-    
-    // 以下、分割したコンポーネント
     
     private var headerSection: some View {
         VStack(alignment: .leading) {

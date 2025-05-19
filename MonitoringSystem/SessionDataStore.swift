@@ -1,4 +1,3 @@
-//SessionDataStore.swift
 import Foundation
 import SwiftData
 
@@ -31,8 +30,24 @@ final class SessionDataStore: ObservableObject {
             TaskUsageSummaryModel.self,
             AppUsageModel.self
         ])
-        container = try! ModelContainer(for: schema,
-                                        configurations: [.init(isStoredInMemoryOnly: false)])
+        
+        do {
+            let config = ModelConfiguration(cloudKitDatabase: .none)
+            container = try ModelContainer(for: schema, configurations: [config])
+            print("✅ CloudKitなしでModelContainerを初期化しました")
+        } catch {
+            print("❌ 最初の初期化に失敗: \(error)")
+            
+            do {
+                let inMemoryConfig = ModelConfiguration(isStoredInMemoryOnly: true)
+                container = try ModelContainer(for: schema, configurations: [inMemoryConfig])
+                print("⚠️ インメモリストレージにフォールバックしました - データは永続化されません")
+            } catch {
+                print("💥 致命的なエラー: \(error)")
+                fatalError("SwiftDataの初期化に失敗しました: \(error)")
+            }
+        }
+        
         migrateLegacyJSONIfNeeded()
         Task { await loadAll() }
     }
@@ -76,14 +91,14 @@ final class SessionDataStore: ObservableObject {
         
         for s in sessions {
             completed += s.completedCount
-            for ts in s.taskSummaries {
+            for ts in s.taskSummaries ?? [] {
                 let key = ts.reminderId.isEmpty ? ts.taskName : ts.reminderId
                 if var hold = merged[key] {
                     hold.totalSeconds += ts.totalSeconds
                     hold.appBreakdown = merge(hold.appBreakdown,
-                                              ts.appBreakdown.map {
-                                                  AppUsage(name: $0.name, seconds: $0.seconds)
-                                              })
+                                              (ts.appBreakdown ?? []).map {
+                                                    AppUsage(name: $0.name, seconds: $0.seconds)
+                                                })
                     hold.isCompleted = hold.isCompleted || ts.isCompleted
                     if hold.comment?.isEmpty ?? true, let c = ts.comment, !c.isEmpty {
                         hold.comment = c
@@ -100,8 +115,8 @@ final class SessionDataStore: ObservableObject {
                         endTime:      ts.endTime,
                         totalSeconds: ts.totalSeconds,
                         comment:      ts.comment,
-                        appBreakdown: ts.appBreakdown.map {
-                            AppUsage(name: $0.name, seconds: $0.seconds)
+                        appBreakdown: (ts.appBreakdown ?? []).map {
+                                        AppUsage(name: $0.name, seconds: $0.seconds)
                         }
                     )
                 }
@@ -125,7 +140,7 @@ final class SessionDataStore: ObservableObject {
 
             if let sessions = try? context.fetch(FetchDescriptor<SessionRecordModel>()) {
                 for rec in sessions {
-                    rec.completedCount = rec.taskSummaries.filter { $0.isCompleted }.count
+                    rec.completedCount = (rec.taskSummaries ?? []).filter { $0.isCompleted }.count
                 }
             }
             try? context.save()

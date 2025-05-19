@@ -1,4 +1,3 @@
-//ContentView.swift
 import SwiftUI
 import AppKit
 import ObjectiveC.runtime
@@ -159,6 +158,8 @@ struct ContentView: View {
     @State private var showManagement = false
     @State private var showCameraTestTab = false
     @State private var parentWindowSize: CGSize = .zero
+    
+    @AppStorage("currentGroupID") private var currentGroupID: String = ""
         
     init(bindableCoordinator: PopupCoordinator) {
         self.bindableCoordinator = bindableCoordinator
@@ -251,6 +252,12 @@ struct ContentView: View {
                             }
                         }
                     }
+                    Spacer().frame(height: 12)
+                    Button("グループ情報をリセット (Debug)") {
+                        currentGroupID = ""
+                        print("🗑️ currentGroupID cleared (debug)")
+                    }
+                    .buttonStyle(.bordered)
                 }
             }
             .overlay(WindowMinSizeEnforcer(minWidth: 800, minHeight: 600)
@@ -373,7 +380,7 @@ struct WindowMinSizeEnforcer: NSViewRepresentable {
     }
 
     private final class MinSizeDelegate: NSObject, NSWindowDelegate {
-        static var key = 0 // objc キー
+        static var key = 0
         let minW: CGFloat
         let minH: CGFloat
         weak var previous: NSWindowDelegate?
@@ -393,6 +400,22 @@ struct WindowMinSizeEnforcer: NSViewRepresentable {
                 size.height = max(size.height, s.height)
             }
             return size
+        }
+        
+        func windowDidBecomeKey(_ notification: Notification) {
+            if let window = notification.object as? NSWindow {
+                let size = window.frame.size
+                let adjWidth = max(size.width, minW)
+                let adjHeight = max(size.height, minH)
+                
+                if size.width < minW || size.height < minH {
+                    var frame = window.frame
+                    frame.size = NSSize(width: adjWidth, height: adjHeight)
+                    window.setFrame(frame, display: true, animate: false)
+                }
+                
+                previous?.windowDidBecomeKey?(notification)
+            }
         }
 
         override func responds(to aSelector: Selector!) -> Bool {

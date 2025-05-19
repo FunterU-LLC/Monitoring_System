@@ -1,4 +1,3 @@
-//CameraManager.swift
 import Observation
 import Foundation
 import AVFoundation

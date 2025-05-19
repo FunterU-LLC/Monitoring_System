@@ -1,4 +1,3 @@
-//CameraTestTabView.swift
 import SwiftUI
 
 struct CameraTestTabView: View {
