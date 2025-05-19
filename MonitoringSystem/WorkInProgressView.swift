@@ -166,14 +166,12 @@ struct WorkInProgressView: View {
         let log = AttendanceLog(userId: "currentUser",
                                 startTime: Date(),
                                 endTime: nil)
-        Task { await SupabaseManager.shared.sendAttendanceLog(log) }
     }
     
     private func endAttendance() {
         let log = AttendanceLog(userId: "currentUser",
                                 startTime: Date(),
                                 endTime: Date())
-        Task { await SupabaseManager.shared.sendAttendanceLog(log) }
     }
 }
 

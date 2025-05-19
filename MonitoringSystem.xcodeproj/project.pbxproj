@@ -19,7 +19,6 @@
 		4AE98C8D2D50E10C00CFA135 /* FaceRecognitionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AE98C8C2D50E10C00CFA135 /* FaceRecognitionManager.swift */; };
 		4AE98C8F2D50E12900CFA135 /* RemindersManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AE98C8E2D50E12900CFA135 /* RemindersManager.swift */; };
 		4AE98C912D50E13E00CFA135 /* AppUsageManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AE98C902D50E13E00CFA135 /* AppUsageManager.swift */; };
-		4AE98C932D50E15900CFA135 /* SupabaseManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AE98C922D50E15900CFA135 /* SupabaseManager.swift */; };
 		4AE98C952D50E17F00CFA135 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AE98C942D50E17F00CFA135 /* ContentView.swift */; };
 		4AE98C972D50E19200CFA135 /* TaskStartPopupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AE98C962D50E19200CFA135 /* TaskStartPopupView.swift */; };
 		4AE98C992D50E1AE00CFA135 /* WorkInProgressView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AE98C982D50E1AE00CFA135 /* WorkInProgressView.swift */; };
@@ -70,7 +69,6 @@
 		4AE98C8C2D50E10C00CFA135 /* FaceRecognitionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FaceRecognitionManager.swift; sourceTree = "<group>"; };
 		4AE98C8E2D50E12900CFA135 /* RemindersManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemindersManager.swift; sourceTree = "<group>"; };
 		4AE98C902D50E13E00CFA135 /* AppUsageManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUsageManager.swift; sourceTree = "<group>"; };
-		4AE98C922D50E15900CFA135 /* SupabaseManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseManager.swift; sourceTree = "<group>"; };
 		4AE98C942D50E17F00CFA135 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		4AE98C962D50E19200CFA135 /* TaskStartPopupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskStartPopupView.swift; sourceTree = "<group>"; };
 		4AE98C982D50E1AE00CFA135 /* WorkInProgressView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkInProgressView.swift; sourceTree = "<group>"; };
@@ -153,7 +151,6 @@
 				4AE98CA02D50E21600CFA135 /* CameraTestTabView.swift */,
 				4AE98C8A2D50E0F200CFA135 /* Models.swift */,
 				4AC720CC2DB25DB20018A744 /* SessionDataStore.swift */,
-				4AE98C922D50E15900CFA135 /* SupabaseManager.swift */,
 				D084753F2DB8E39B00462E88 /* SessionDataModel.swift */,
 				D000C9962DCF0AF2004E47C8 /* CloudKitService.swift */,
 				D000C9982DCF0B95004E47C8 /* OnboardingView.swift */,
@@ -328,7 +325,6 @@
 			files = (
 				4AE98C8F2D50E12900CFA135 /* RemindersManager.swift in Sources */,
 				4AE98C9D2D50E1EA00CFA135 /* CameraManager.swift in Sources */,
-				4AE98C932D50E15900CFA135 /* SupabaseManager.swift in Sources */,
 				D000C99F2DCF6FEB004E47C8 /* AcceptShareSheet.swift in Sources */,
 				4AE98C9B2D50E1C300CFA135 /* FinishTaskPopupView.swift in Sources */,
 				4AE98C8B2D50E0F200CFA135 /* Models.swift in Sources */,

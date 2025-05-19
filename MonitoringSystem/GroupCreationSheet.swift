@@ -57,6 +57,11 @@ struct GroupCreationSheet: View {
             presentShareSheet(url: result.url)
 
             DispatchQueue.main.async {
+                GroupInfoStore.shared.groupInfo = GroupInfo(
+                    groupName: groupName,
+                    ownerName: ownerName,
+                    recordID: result.groupID
+                )
                 currentGroupID = result.groupID
                 dismiss()
             }

@@ -7,13 +7,71 @@ extension CKShare.Metadata: @retroactive Identifiable {
     public var id: CKRecord.ID { share.recordID }
 }
 
+struct GroupInfo: Codable {
+    let groupName: String
+    let ownerName: String
+    let recordID: String
+}
+
+struct UserNameInputSheet: View {
+    @AppStorage("userName") private var userName: String = ""
+    @State private var inputName: String = ""
+    var onFinish: () -> Void
+
+    var body: some View {
+        VStack(spacing: 20) {
+            Text("ユーザーネームを入力してください").font(.headline)
+            TextField("ユーザーネーム", text: $inputName)
+                .textFieldStyle(.roundedBorder)
+                .frame(width: 240)
+            Button("決定") {
+                userName = inputName.trimmingCharacters(in: .whitespacesAndNewlines)
+                onFinish()
+            }
+            .disabled(inputName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        }
+        .padding(32)
+        .frame(width: 340)
+        .onAppear {
+            inputName = userName
+        }
+    }
+}
+
+class GroupInfoStore: ObservableObject {
+    private let userDefaultsKey = "GroupInfoStore.groupInfo"
+    @Published var groupInfo: GroupInfo? {
+        didSet {
+            // 永続化（UserDefaultsなど）するならここに
+            let defaults = UserDefaults.standard
+            if let groupInfo = groupInfo {
+                if let data = try? JSONEncoder().encode(groupInfo) {
+                    defaults.set(data, forKey: userDefaultsKey)
+                }
+            } else {
+                defaults.removeObject(forKey: userDefaultsKey)
+            }
+        }
+    }
+    static let shared = GroupInfoStore()
+
+    init() {
+        let defaults = UserDefaults.standard
+        if let data = defaults.data(forKey: userDefaultsKey),
+           let loaded = try? JSONDecoder().decode(GroupInfo.self, from: data) {
+            self.groupInfo = loaded
+        } else {
+            self.groupInfo = nil
+        }
+    }
+}
+
 @main
 struct MonitoringSystemApp: App {
     private var sessionStore = SessionDataStore.shared
     private var faceRecognitionManager = FaceRecognitionManager()
     private var remindersManager = RemindersManager()
     private var appUsageManager = AppUsageManager()
-    private let supabaseManager = SupabaseManager.shared
     private var cameraManager = CameraManager()
     @State private var accessibilityTask: Task<Void, Never>?
     private var popupCoordinator = PopupCoordinator()
@@ -22,6 +80,11 @@ struct MonitoringSystemApp: App {
     @AppStorage("currentGroupID") private var currentGroupID: String = ""
     
     @State private var pendingShareMetadata: CKShare.Metadata? = nil
+    
+    @State private var showUserNameSheet = false
+    @State private var pendingGroupID: String?
+    @State private var pendingGroupName: String?
+    @State private var pendingOwnerName: String?
 
     var body: some Scene {
         WindowGroup {
@@ -66,6 +129,22 @@ struct MonitoringSystemApp: App {
                     }
                 }
                 .frame(width: 500, height: 300)
+            }
+            .sheet(isPresented: $showUserNameSheet) {
+                UserNameInputSheet {
+                    if let id = pendingGroupID, let gName = pendingGroupName, let oName = pendingOwnerName {
+                        GroupInfoStore.shared.groupInfo = GroupInfo(
+                            groupName: gName,
+                            ownerName: oName,
+                            recordID: id
+                        )
+                        currentGroupID = id
+                    }
+                    pendingGroupID = nil
+                    pendingGroupName = nil
+                    pendingOwnerName = nil
+                    showUserNameSheet = false
+                }
             }
             .task {
                 await checkAccessibilityLoop()
@@ -202,7 +281,6 @@ struct MonitoringSystemApp: App {
                     print("📊 Group: \(groupName), Owner: \(ownerName)")
                     
                     print("🔄 Using record ID as group ID: \(recordID)")
-                    self.currentGroupID = recordID
                     
                     self.showJoinConfirmation(groupName: groupName, ownerName: ownerName, recordID: recordID)
                 } else {
@@ -230,10 +308,10 @@ struct MonitoringSystemApp: App {
         let response = alert.runModal()
         
         if response == .alertFirstButtonReturn {
-            print("✅ User confirmed joining group: \(groupName)")
-            self.currentGroupID = recordID
-        } else {
-            print("❌ User canceled joining group")
+            pendingGroupID = recordID
+            pendingGroupName = groupName
+            pendingOwnerName = ownerName
+            showUserNameSheet = true
         }
     }
 

@@ -142,13 +142,12 @@ struct HoverPressButtonStyle: ButtonStyle {
 }
 
 
-
-
-
 struct ContentView: View {
     
     @State private var focusedButton: MainButtonFocus = .start
     
+    @ObservedObject var groupInfoStore = GroupInfoStore.shared
+    @State private var showGroupDetail = false
     
     @Environment(PopupCoordinator.self) var popupCoordinator
     @Environment(RemindersManager.self) var remindersManager
@@ -160,6 +159,7 @@ struct ContentView: View {
     @State private var parentWindowSize: CGSize = .zero
     
     @AppStorage("currentGroupID") private var currentGroupID: String = ""
+    @AppStorage("userName") private var userName: String = ""
         
     init(bindableCoordinator: PopupCoordinator) {
         self.bindableCoordinator = bindableCoordinator
@@ -256,6 +256,7 @@ struct ContentView: View {
                     Button("グループ情報をリセット (Debug)") {
                         currentGroupID = ""
                         print("🗑️ currentGroupID cleared (debug)")
+                        GroupInfoStore.shared.groupInfo = nil
                     }
                     .buttonStyle(.bordered)
                 }
@@ -299,6 +300,60 @@ struct ContentView: View {
         .sheet(isPresented: $showCameraTestTab) {
             CameraTestTabView()
         }
+        if let info = groupInfoStore.groupInfo {
+            VStack(alignment: .trailing) {
+                Button(info.groupName) {
+                    withAnimation { showGroupDetail.toggle() }
+                }
+                .padding(8)
+                .background(.thinMaterial)
+                .cornerRadius(8)
+                .shadow(radius: 2)
+
+                if showGroupDetail {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("グループ名: \(info.groupName)")
+                        Text("オーナー: \(info.ownerName)")
+                        Text("ユーザーネーム: \(userName)")
+                        HStack {
+                            Text("招待用URL:")
+                            TextField("", text: .constant("monitoringsystem://share/\(info.recordID)"))
+                                .textFieldStyle(.roundedBorder)
+                                .disabled(true)
+                            Button("コピー") {
+                                let url = "monitoringsystem://share/\(info.recordID)"
+                                NSPasteboard.general.clearContents()
+                                NSPasteboard.general.setString(url, forType: .string)
+                            }
+                        }
+                        Button("共有") {
+                            shareGroupURL("monitoringsystem://share/\(info.recordID)")
+                        }
+                        .padding(.top, 8)
+                    }
+                    .padding()
+                    .background(.thinMaterial)
+                    .cornerRadius(12)
+                    .shadow(radius: 4)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                }
+            }
+            .padding([.top, .trailing], 16)
+        }
+    }
+    
+    func shareGroupURL(_ urlString: String) {
+        #if os(macOS)
+        if let url = URL(string: urlString),
+           let window = NSApp.keyWindow ?? NSApplication.shared.windows.first {
+            let picker = NSSharingServicePicker(items: [url])
+            picker.show(
+                relativeTo: .zero,
+                of: window.contentView!,
+                preferredEdge: .maxY
+            )
+        }
+        #endif
     }
     
     private func handleKeyDown(_ event: NSEvent) {
