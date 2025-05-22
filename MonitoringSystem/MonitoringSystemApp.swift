@@ -42,7 +42,6 @@ class GroupInfoStore: ObservableObject {
     private let userDefaultsKey = "GroupInfoStore.groupInfo"
     @Published var groupInfo: GroupInfo? {
         didSet {
-            // 永続化（UserDefaultsなど）するならここに
             let defaults = UserDefaults.standard
             if let groupInfo = groupInfo {
                 if let data = try? JSONEncoder().encode(groupInfo) {
@@ -388,10 +387,8 @@ struct MonitoringSystemApp: App {
         ]
         let trusted = AXIsProcessTrustedWithOptions(options as CFDictionary)
         if trusted {
-            print("アクセシビリティ権限が許可されています")
             showAccessibilityPrompt = false
         } else {
-            print("アクセシビリティ権限がまだ許可されていません。設定を促します。")
             showAccessibilityPrompt = true
         }
     }

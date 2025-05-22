@@ -210,6 +210,15 @@ struct ContentView: View {
                     HStack {
                         Button("追加報告") {
                             print("追加報告ボタンをクリック")
+                            // デバッグ用ボタンなどで実行
+//                            Task {
+//                                do {
+//                                    try await CloudKitService.shared.initializeCloudKitSchema()
+//                                    print("スキーマ初期化完了")
+//                                } catch {
+//                                    print("スキーマ初期化失敗: \(error)")
+//                                }
+//                            }
                         }
                         .disabled(false)
                         .buttonStyle(FocusableButtonStyle(

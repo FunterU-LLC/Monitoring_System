@@ -7,6 +7,9 @@ struct FinishTaskPopupView: View {
     @Environment(PopupCoordinator.self) var popupCoordinator
     @Environment(FaceRecognitionManager.self) var faceRecognitionManager
 
+    @AppStorage("currentGroupID") private var currentGroupID: String = ""
+    @AppStorage("userName") private var userName: String = ""
+
     let selectedTaskIds: [String]
     
     @State private var tasksToFinish: [TaskItem] = []
@@ -126,7 +129,12 @@ struct FinishTaskPopupView: View {
                                                 comment:      note,
                                                 appBreakdown: apps)
                     }
-                    Task { await SessionDataStore.shared.appendSession(tasks: summaries, completed: 0) }
+                    
+                    Task {
+                        let sessionRecord = createSessionRecord(summaries: summaries, completedCount: 0)
+                        await uploadToCloudKit(sessionRecord: sessionRecord)
+                    }
+                    
                     appUsageManager.clearRecognizedUsage()
 
                     for task in tasksToFinish {
@@ -218,13 +226,17 @@ struct FinishTaskPopupView: View {
                             appBreakdown: apps
                         )
                     }
-                        appUsageManager.clearRecognizedUsage()
-                        Task { await SessionDataStore.shared.appendSession(tasks: summaries,
-                                                                           completed: completedTasks.count) }
+                    
+                    appUsageManager.clearRecognizedUsage()
+                    
+                    Task {
+                        let sessionRecord = createSessionRecord(summaries: summaries, completedCount: completedTasks.count)
+                        await uploadToCloudKit(sessionRecord: sessionRecord)
+                    }
                         
-                        popupCoordinator.showFinishPopup = false
-                        popupCoordinator.showWorkInProgress = false
-                        popupCoordinator.showTaskStartPopup = false
+                    popupCoordinator.showFinishPopup = false
+                    popupCoordinator.showWorkInProgress = false
+                    popupCoordinator.showTaskStartPopup = false
                 }
                 
                 .disabled(completedTasks.isEmpty)
@@ -250,6 +262,50 @@ struct FinishTaskPopupView: View {
             }
         }
     }
+    
+    private func createSessionRecord(summaries: [TaskUsageSummary], completedCount: Int) -> SessionRecordModel {
+        let taskModels = summaries.map { summary in
+            TaskUsageSummaryModel(
+                reminderId: summary.reminderId,
+                taskName: summary.taskName,
+                isCompleted: summary.isCompleted,
+                startTime: summary.startTime,
+                endTime: summary.endTime,
+                totalSeconds: summary.totalSeconds,
+                comment: summary.comment,
+                appBreakdown: summary.appBreakdown.map { app in
+                    AppUsageModel(name: app.name, seconds: app.seconds)
+                }
+            )
+        }
+        
+        let sessionEnd = summaries.map(\.endTime).max() ?? Date()
+        return SessionRecordModel(
+            endTime: sessionEnd,
+            taskSummaries: taskModels,
+            completedCount: completedCount
+        )
+    }
+    
+    private func uploadToCloudKit(sessionRecord: SessionRecordModel) async {
+        guard !currentGroupID.isEmpty && !userName.isEmpty else {
+            print("❌ Cannot upload: Missing groupID or userName")
+            return
+        }
+        
+        do {
+            print("📤 Uploading session to CloudKit...")
+            try await CloudKitService.shared.uploadSession(
+                groupID: currentGroupID,
+                userName: userName,
+                sessionRecord: sessionRecord
+            )
+            print("✅ Session uploaded successfully")
+        } catch {
+            print("❌ Failed to upload session: \(error.localizedDescription)")
+        }
+    }
+    
     private func handleKeyDown(_ event: NSEvent) {
         if let firstResponder = NSApp.keyWindow?.firstResponder,
            firstResponder is NSTextView {

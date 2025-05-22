@@ -20,7 +20,6 @@ enum ReportPeriod: String, CaseIterable, Identifiable {
 }
 
 struct ManagementView: View {
-    @Environment(SessionDataStore.self) var store
     @Environment(AppUsageManager.self) var appUsageManager
     @Environment(\.dismiss) private var dismiss
     @Environment(RemindersManager.self) var remindersManager
@@ -31,6 +30,19 @@ struct ManagementView: View {
     @State private var summaries: ([TaskUsageSummary], Int) = ([], 0)
     @State private var toastMessage: String? = nil
     @State private var toastWork: DispatchWorkItem? = nil
+    @State private var isLoading: Bool = false
+    @State private var errorMessage: String? = nil
+    
+    @State private var showDeleteConfirmation = false
+    @State private var deleteAction: (() async -> Void)? = nil
+    @State private var deleteMessage = ""
+
+    @AppStorage("currentGroupID") private var currentGroupID: String = ""
+    @AppStorage("userName") private var userName: String = ""
+    
+    @State private var groupMembers: [String] = []
+    @State private var selectedUser: String = ""
+    @State private var isLoadingMembers: Bool = false
 
     private var tasks: [TaskUsageSummary] {
         summaries.0.sorted { $0.totalSeconds > $1.totalSeconds }
@@ -59,15 +71,9 @@ struct ManagementView: View {
     }
 
     private var completionTrend: [Int] {
-        let cal       = Calendar.current
-        let todayStart = cal.startOfDay(for: Date())
-        return (0..<7).map { off in
-            let dayStart = cal.date(byAdding: .day, value: -off, to: todayStart)!
-            let cnt = store.allSessions
-                .filter { cal.isDate($0.endTime, inSameDayAs: dayStart) }
-                .reduce(0) { $0 + $1.completedCount }
-            return cnt
-        }.reversed()
+        // CloudKitからの取得は未実装のため、仮データを返す
+        // 実装する場合は、過去7日間のデータを個別に取得する必要がある
+        return Array(repeating: completedCount / 7, count: 7)
     }
 
     var body: some View {
@@ -80,12 +86,49 @@ struct ManagementView: View {
                     .buttonStyle(.bordered)
                     Spacer()
                 }
+                
+                if !currentGroupID.isEmpty && !userName.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("グループメンバー: \(groupMembers.count)人")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Text("ネットワーク状態: \(CloudKitService.shared.getNetworkStatus())")
+                            .font(.caption)
+                            .foregroundColor(CloudKitService.shared.isOnline ? .green : .red)
+                    }
+                    .padding(.bottom, 16)
+                }
+
+                userSelectionSection
+
                 periodSelector
 
+                if let error = errorMessage {
+                    Text("エラー: \(error)")
+                        .foregroundColor(.red)
+                        .padding()
+                        .background(Color.red.opacity(0.1))
+                        .cornerRadius(8)
+                }
+
+                if isLoading {
+                    HStack {
+                        ProgressView()
+                            .scaleEffect(0.8)
+                        Text("CloudKitからデータを取得中...")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    .padding()
+                }
+
                 kpiCards
+                debugDeletionSection
 
                 Button("データ初期化") {
-                    Task { await SessionDataStore.shared.wipeAllPersistentData() }
+                    Task {
+                        await clearCloudKitData()
+                    }
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(.red)
@@ -103,8 +146,14 @@ struct ManagementView: View {
                     .frame(height: 160)
             }
             .padding(24)
-            .task { await refreshSummaries() }
+            .task {
+                await loadGroupMembers()
+                await refreshSummaries()
+            }
             .onChange(of: period) {
+                Task { await refreshSummaries() }
+            }
+            .onChange(of: selectedUser) {
                 Task { await refreshSummaries() }
             }
         }
@@ -134,6 +183,22 @@ struct ManagementView: View {
             toastWork = work
             DispatchQueue.main.asyncAfter(deadline: .now() + 2, execute: work)
         }
+        .alert("危険な操作", isPresented: $showDeleteConfirmation) {
+                    Button("キャンセル", role: .cancel) {}
+                    Button("削除実行", role: .destructive) {
+                        if let action = deleteAction {
+                            Task { await action() }
+                        }
+                    }
+                } message: {
+                    Text(deleteMessage)
+                }
+    }
+    
+    private func clearCloudKitData() async {
+        CloudKitService.shared.clearTemporaryStorage()
+        toastMessage = "一時保存データをクリアしました"
+        await refreshSummaries()
     }
 }
 
@@ -167,6 +232,53 @@ private struct TaskChartRow: View {
 }
 
 private extension ManagementView {
+    var userSelectionSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("ユーザー選択")
+                .font(.headline)
+            
+            HStack {
+                if isLoadingMembers {
+                    ProgressView()
+                        .scaleEffect(0.7)
+                    Text("メンバー読み込み中...")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                } else {
+                    Picker("表示するユーザー", selection: $selectedUser) {
+                        ForEach(groupMembers, id: \.self) { member in
+                            HStack {
+                                Text(member)
+                                if member == userName {
+                                    Text("(自分)")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                            }
+                            .tag(member)
+                        }
+                    }
+                    .pickerStyle(MenuPickerStyle())
+                    .disabled(groupMembers.isEmpty)
+                    
+                    Button("更新") {
+                        Task { await loadGroupMembers() }
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(isLoadingMembers)
+                }
+            }
+            
+            if !selectedUser.isEmpty && selectedUser != userName {
+                Text("\(selectedUser) の作業記録を表示中")
+                    .font(.caption)
+                    .foregroundColor(.blue)
+                    .padding(.top, 4)
+            }
+        }
+        .padding(.bottom, 16)
+    }
+    
     var periodSelector: some View {
         HStack(spacing: 12) {
             ForEach(ReportPeriod.allCases) { p in
@@ -207,7 +319,6 @@ private extension ManagementView {
             .fill(Color(NSColor.controlBackgroundColor)))
     }
 
-
     private var taskTotalChart: some View {
         let maxSec = tasks.first?.totalSeconds ?? 1
         return VStack(alignment: .leading, spacing: 4) {
@@ -224,13 +335,182 @@ private extension ManagementView {
     }
 
     func refreshSummaries() async {
-        let result = await store.summaries(forDays: period.days)
+        guard !currentGroupID.isEmpty else {
+            await MainActor.run {
+                errorMessage = "グループIDが設定されていません"
+                summaries = ([], 0)
+            }
+            return
+        }
+        
+        let targetUser = selectedUser.isEmpty ? userName : selectedUser
+        guard !targetUser.isEmpty else {
+            await MainActor.run {
+                errorMessage = "ユーザーが選択されていません"
+                summaries = ([], 0)
+            }
+            return
+        }
+
         await MainActor.run {
-            withAnimation(.easeInOut(duration: 0.4)) {
-                summaries = result
+            isLoading = true
+            errorMessage = nil
+        }
+
+        do {
+            print("🔄 Fetching CloudKit data for user: \(targetUser), period: \(period.days) days")
+            let result = try await CloudKitService.shared.fetchUserSummaries(
+                groupID: currentGroupID,
+                userName: targetUser,
+                forDays: period.days
+            )
+            
+            await MainActor.run {
+                withAnimation(.easeInOut(duration: 0.4)) {
+                    summaries = result
+                }
+                isLoading = false
+                print("✅ CloudKit data loaded: \(result.0.count) tasks, \(result.1) completed")
+            }
+        } catch {
+            await MainActor.run {
+                errorMessage = error.localizedDescription
+                summaries = ([], 0)
+                isLoading = false
+                print("❌ Failed to fetch CloudKit data: \(error)")
             }
         }
     }
+    
+    func loadGroupMembers() async {
+        guard !currentGroupID.isEmpty else {
+            await MainActor.run {
+                groupMembers = []
+                selectedUser = userName
+            }
+            return
+        }
+        
+        await MainActor.run {
+            isLoadingMembers = true
+        }
+        
+        do {
+            let members = try await CloudKitService.shared.fetchGroupMembers(groupID: currentGroupID)
+            await MainActor.run {
+                groupMembers = members
+                if groupMembers.contains(userName) {
+                    selectedUser = userName
+                } else if let firstMember = groupMembers.first {
+                    selectedUser = firstMember
+                } else {
+                    selectedUser = ""
+                }
+                isLoadingMembers = false
+                print("✅ Loaded \(members.count) group members")
+            }
+        } catch {
+            await MainActor.run {
+                groupMembers = [userName]
+                selectedUser = userName
+                isLoadingMembers = false
+                print("❌ Failed to load group members: \(error)")
+            }
+        }
+    }
+    var debugDeletionSection: some View {
+            #if DEBUG
+            VStack(alignment: .leading, spacing: 12) {
+                Text("🚨 デバッグ用削除機能")
+                    .font(.headline)
+                    .foregroundColor(.red)
+                
+                Text("注意: これらの操作は元に戻せません")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                
+                HStack(spacing: 12) {
+                    Button("一時保存データクリア") {
+                        CloudKitService.shared.clearTemporaryStorage()
+                        toastMessage = "一時保存データをクリアしました"
+                    }
+                    .buttonStyle(.bordered)
+                    
+                    Button("データ統計表示") {
+                        Task {
+                            do {
+                                try await CloudKitService.shared.printCloudKitDataStats()
+                                toastMessage = "データ統計をコンソールに出力しました"
+                            } catch {
+                                toastMessage = "統計取得失敗: \(error.localizedDescription)"
+                            }
+                        }
+                    }
+                    .buttonStyle(.bordered)
+                }
+                
+                HStack(spacing: 12) {
+                    Button("選択ユーザーのデータ削除") {
+                        let targetUser = selectedUser.isEmpty ? userName : selectedUser
+                        deleteMessage = "ユーザー「\(targetUser)」のすべてのデータを削除しますか？"
+                        deleteAction = {
+                            await deleteUserData(targetUser)
+                        }
+                        showDeleteConfirmation = true
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.orange)
+                    .disabled(selectedUser.isEmpty && userName.isEmpty)
+                    
+                    Button("全データ削除") {
+                        deleteMessage = "CloudKit内のALLデータを削除しますか？この操作は元に戻せません。"
+                        deleteAction = {
+                            await deleteAllCloudKitData()
+                        }
+                        showDeleteConfirmation = true
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.red)
+                }
+            }
+            .padding()
+            .background(Color.red.opacity(0.1))
+            .cornerRadius(12)
+            #else
+            EmptyView()
+            #endif
+        }
+        
+        private func deleteUserData(_ userName: String) async {
+            do {
+                try await CloudKitService.shared.deleteUserData(groupID: currentGroupID, userName: userName)
+                await MainActor.run {
+                    toastMessage = "ユーザー「\(userName)」のデータを削除しました"
+                }
+                await refreshSummaries()
+                await loadGroupMembers()
+            } catch {
+                await MainActor.run {
+                    toastMessage = "削除失敗: \(error.localizedDescription)"
+                }
+            }
+        }
+        
+        private func deleteAllCloudKitData() async {
+            do {
+                try await CloudKitService.shared.deleteAllCloudKitData()
+                await MainActor.run {
+                    toastMessage = "すべてのCloudKitデータを削除しました"
+                    groupMembers = []
+                    selectedUser = ""
+                    summaries = ([], 0)
+                }
+            } catch {
+                await MainActor.run {
+                    toastMessage = "削除失敗: \(error.localizedDescription)"
+                }
+            }
+        }
 }
 
 private struct TaskTotalRow: View {
@@ -264,8 +544,6 @@ private struct TaskTotalRow: View {
         .frame(maxWidth: .infinity)
     }
 }
-
-
 
 private struct TaskStackedRow: View {
     let task: TaskUsageSummary
@@ -518,7 +796,7 @@ private struct TaskStackedRow: View {
                                  notes: ek.notes)
             remindersManager.removeTask(tItem)
         }
-        SessionDataStore.shared.removeAllRecords(for: task.reminderId)
+        // Note: CloudKitからのデータ削除は別途実装が必要
         toastMessage = "『\(task.taskName)』を削除しました。"
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { refreshAction() }
     }
@@ -536,7 +814,7 @@ private struct TaskStackedRow: View {
             remindersManager.renameTask(taskItem, to: trimmed)
         }
 
-        SessionDataStore.shared.updateTaskTitle(reminderId: task.reminderId, newTitle: trimmed)
+        // Note: CloudKitのデータ更新は別途実装が必要
         toastMessage = "'\(task.taskName)' を '\(trimmed)' に変更しました。"
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { refreshAction() }
         isEditingName = false
@@ -560,8 +838,7 @@ private struct TaskStackedRow: View {
             let newState = !task.isCompleted
             remindersManager.updateTask(item, completed: newState, notes: nil)
 
-            SessionDataStore.shared.updateTaskCompletion(reminderId: task.reminderId,
-                                                         isCompleted: newState)
+            // Note: CloudKitのデータ更新は別途実装が必要
 
             await MainActor.run {
                 toastMessage = newState
@@ -576,7 +853,6 @@ private struct TaskStackedRow: View {
         }
     }
 }
-
 
 private struct TaskAppStackedChartView: View {
     let tasks: [TaskUsageSummary]
@@ -659,7 +935,6 @@ private struct OverallAppUsageBarView: View {
         .frame(height: 18)
     }
 }
-
 
 private struct TaskLengthRow: View {
     let task: TaskUsageSummary
@@ -798,7 +1073,7 @@ private struct TaskLengthRow: View {
                                  notes: ek.notes)
             remindersManager.removeTask(tItem)
         }
-        SessionDataStore.shared.removeAllRecords(for: task.reminderId)
+        // Note: CloudKitからのデータ削除は別途実装が必要
         toastMessage = "『\(task.taskName)』を削除しました。"
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { refreshAction() }
     }
@@ -816,8 +1091,7 @@ private struct TaskLengthRow: View {
             remindersManager.renameTask(taskItem, to: trimmed)
         }
 
-        SessionDataStore.shared.updateTaskTitle(reminderId: task.reminderId, newTitle: trimmed)
-
+        // Note: CloudKitのデータ更新は別途実装が必要
         toastMessage = "'\(task.taskName)' を '\(trimmed)' に変更しました。"
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { refreshAction() }
         isEditing = false
@@ -840,8 +1114,7 @@ private struct TaskLengthRow: View {
 
             let newState = !task.isCompleted
             remindersManager.updateTask(item, completed: newState, notes: nil)
-            SessionDataStore.shared.updateTaskCompletion(reminderId: task.reminderId,
-                                                         isCompleted: newState)
+            // Note: CloudKitのデータ更新は別途実装が必要
 
             await MainActor.run {
                 toastMessage = newState
