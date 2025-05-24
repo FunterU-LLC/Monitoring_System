@@ -16,24 +16,84 @@ struct GroupInfo: Codable {
 struct UserNameInputSheet: View {
     @AppStorage("userName") private var userName: String = ""
     @State private var inputName: String = ""
+    @State private var isRegistering: Bool = false
+    @State private var errorMessage: String? = nil
+    
+    var groupID: String
+    var groupName: String
     var onFinish: () -> Void
 
     var body: some View {
         VStack(spacing: 20) {
             Text("ユーザーネームを入力してください").font(.headline)
+            
             TextField("ユーザーネーム", text: $inputName)
                 .textFieldStyle(.roundedBorder)
                 .frame(width: 240)
-            Button("決定") {
-                userName = inputName.trimmingCharacters(in: .whitespacesAndNewlines)
-                onFinish()
+                .disabled(isRegistering)
+            
+            if let error = errorMessage {
+                Text(error)
+                    .foregroundColor(.red)
+                    .font(.caption)
             }
-            .disabled(inputName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            
+            Button("決定") {
+                Task {
+                    await registerMember()
+                }
+            }
+            .disabled(inputName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isRegistering)
+            
+            if isRegistering {
+                ProgressView()
+                    .scaleEffect(0.8)
+            }
         }
         .padding(32)
         .frame(width: 340)
         .onAppear {
             inputName = userName
+        }
+    }
+    
+    private func registerMember() async {
+        let trimmedName = inputName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty else { return }
+        
+        // groupIDのバリデーション
+        guard !groupID.isEmpty else {
+            await MainActor.run {
+                errorMessage = "グループIDが無効です"
+                isRegistering = false
+            }
+            return
+        }
+        
+        await MainActor.run {
+            isRegistering = true
+            errorMessage = nil
+        }
+        
+        do {
+            print("📤 Registering member with groupID: \(groupID), userName: \(trimmedName)")  // デバッグログ
+            
+            // CloudKitにメンバーを登録
+            _ = try await CloudKitService.shared.createOrUpdateMember(
+                groupID: groupID,
+                userName: trimmedName
+            )
+            
+            await MainActor.run {
+                userName = trimmedName
+                isRegistering = false
+                onFinish()
+            }
+        } catch {
+            await MainActor.run {
+                errorMessage = "メンバー登録に失敗しました: \(error.localizedDescription)"
+                isRegistering = false
+            }
         }
     }
 }
@@ -81,9 +141,9 @@ struct MonitoringSystemApp: App {
     @State private var pendingShareMetadata: CKShare.Metadata? = nil
     
     @State private var showUserNameSheet = false
-    @State private var pendingGroupID: String?
-    @State private var pendingGroupName: String?
-    @State private var pendingOwnerName: String?
+    @State private var pendingGroupID: String = ""
+    @State private var pendingGroupName: String = ""
+    @State private var pendingOwnerName: String = ""
 
     var body: some Scene {
         WindowGroup {
@@ -129,20 +189,27 @@ struct MonitoringSystemApp: App {
                 }
                 .frame(width: 500, height: 300)
             }
+            // sheet部分を修正
             .sheet(isPresented: $showUserNameSheet) {
-                UserNameInputSheet {
-                    if let id = pendingGroupID, let gName = pendingGroupName, let oName = pendingOwnerName {
+                UserNameInputSheet(
+                    groupID: pendingGroupID,
+                    groupName: pendingGroupName.isEmpty ? "Unknown Group" : pendingGroupName
+                ) {
+                    if !pendingGroupID.isEmpty {
                         GroupInfoStore.shared.groupInfo = GroupInfo(
-                            groupName: gName,
-                            ownerName: oName,
-                            recordID: id
+                            groupName: pendingGroupName,
+                            ownerName: pendingOwnerName,
+                            recordID: pendingGroupID
                         )
-                        currentGroupID = id
+                        currentGroupID = pendingGroupID
                     }
-                    pendingGroupID = nil
-                    pendingGroupName = nil
-                    pendingOwnerName = nil
+                    pendingGroupID = ""
+                    pendingGroupName = ""
+                    pendingOwnerName = ""
                     showUserNameSheet = false
+                }
+                .onAppear {
+                    print("📱 UserNameInputSheet appeared with groupID: \(pendingGroupID)")
                 }
             }
             .task {
@@ -289,8 +356,10 @@ struct MonitoringSystemApp: App {
             }
         }
     }
-    
+    // showJoinConfirmationメソッドを修正
     private func showJoinConfirmation(groupName: String, ownerName: String, recordID: String) {
+        print("🔍 showJoinConfirmation called with recordID: \(recordID)")
+        
         let alert = NSAlert()
         alert.messageText = "グループへの参加"
         alert.informativeText = "グループ名: \(groupName)\nオーナー: \(ownerName)\n\nこのグループに参加しますか？"
@@ -307,10 +376,15 @@ struct MonitoringSystemApp: App {
         let response = alert.runModal()
         
         if response == .alertFirstButtonReturn {
-            pendingGroupID = recordID
-            pendingGroupName = groupName
-            pendingOwnerName = ownerName
-            showUserNameSheet = true
+            print("✅ User confirmed join, setting pendingGroupID: \(recordID)")
+            // MainActorで確実に更新
+            Task { @MainActor in
+                self.pendingGroupID = recordID
+                self.pendingGroupName = groupName
+                self.pendingOwnerName = ownerName
+                print("📋 pendingGroupID set to: \(self.pendingGroupID)")
+                self.showUserNameSheet = true
+            }
         }
     }
 

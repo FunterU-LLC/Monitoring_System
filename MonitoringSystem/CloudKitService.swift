@@ -573,6 +573,9 @@ final class CloudKitService {
             let sessionRef = CKRecord.Reference(recordID: sessionRecord.recordID, action: .deleteSelf)
             let taskSummaries = try await fetchTaskSummariesForManagement(sessionRef: sessionRef)
             
+            let sessionCompletedCount = taskSummaries.filter { $0.isCompleted }.count
+            totalCompleted += sessionCompletedCount
+            
             for task in taskSummaries {
                 let key = task.reminderId.isEmpty ? task.taskName : task.reminderId
                 
@@ -595,10 +598,11 @@ final class CloudKitService {
             }
         }
         
+        let mergedCompletedCount = merged.values.filter { $0.isCompleted }.count
+            
         let sortedTasks = Array(merged.values).sorted { $0.totalSeconds > $1.totalSeconds }
         print("📊 Fetched \(sortedTasks.count) tasks, \(totalCompleted) completed")
-        
-        return (sortedTasks, totalCompleted)
+        return (sortedTasks, mergedCompletedCount)  // 実際の完了数を返す
     }
     
     private func fetchTaskSummariesForManagement(sessionRef: CKRecord.Reference) async throws -> [TaskUsageSummary] {
@@ -1093,7 +1097,141 @@ final class CloudKitService {
     func getNetworkStatus() -> String {
         return isOnline ? "Online" : "Offline"
     }
-
+        
+    func updateTaskCompletion(groupID: String, taskReminderId: String, isCompleted: Bool) async throws {
+        print("🔄 Updating task completion in CloudKit: \(taskReminderId) -> \(isCompleted)")
+            
+        guard !groupID.isEmpty && !taskReminderId.isEmpty else {
+            print("❌ Invalid parameters: groupID='\(groupID)', taskReminderId='\(taskReminderId)'")
+            throw CKServiceError.invalidZone
+        }
+            
+        try await ensureZone()
+            
+        let predicate = NSPredicate(format: "reminderId == %@", taskReminderId)
+        let query = CKQuery(recordType: RecordType.taskUsageSummary, predicate: predicate)
+            
+        let db = CKContainer.default().privateCloudDatabase
+        let records = try await performQuery(query, in: db)
+            
+        guard !records.isEmpty else {
+            print("⚠️ No tasks found with reminderId: \(taskReminderId)")
+            print("❌ Task not found in CloudKit for reminderId: \(taskReminderId)")
+            return
+        }
+            
+        print("📊 Found \(records.count) task records to update")
+            
+        var recordsToUpdate: [CKRecord] = []
+        var sessionRecordsToUpdate: Set<CKRecord.ID> = []
+            
+        for record in records {
+            record["isCompleted"] = isCompleted as CKRecordValue
+            recordsToUpdate.append(record)
+            print("  - Updating task record: \(record.recordID.recordName)")
+                
+            // セッションレコードも更新が必要な場合はIDを収集
+            if let sessionRef = record["sessionRef"] as? CKRecord.Reference {
+                sessionRecordsToUpdate.insert(sessionRef.recordID)
+            }
+        }
+            
+        // セッションの完了数を更新
+        for sessionID in sessionRecordsToUpdate {
+            print("  - Updating session record: \(sessionID.recordName)")
+            if let sessionRecord = try? await db.record(for: sessionID) {
+                // セッション内のタスクを再集計
+                let sessionRef = CKRecord.Reference(recordID: sessionID, action: .deleteSelf)
+                let taskPredicate = NSPredicate(format: "sessionRef == %@", sessionRef)
+                let taskQuery = CKQuery(recordType: RecordType.taskUsageSummary, predicate: taskPredicate)
+                let tasks = try await performQuery(taskQuery, in: db)
+                    
+                let completedCount = tasks.filter { ($0["isCompleted"] as? Bool) ?? false }.count
+                sessionRecord["completedCount"] = completedCount as CKRecordValue
+                recordsToUpdate.append(sessionRecord)
+                print("    Session completed count updated to: \(completedCount)")
+            }
+        }
+            
+        if !recordsToUpdate.isEmpty {
+            print("📤 Uploading \(recordsToUpdate.count) records to CloudKit...")
+            try await uploadRecordsInBatches(recordsToUpdate)
+            print("✅ Updated \(recordsToUpdate.count) records for task completion")
+        } else {
+            print("⚠️ No records to update")
+        }
+    }
+        
+    func updateTaskName(groupID: String, taskReminderId: String, newName: String) async throws {
+        print("🔄 Updating task name in CloudKit: \(taskReminderId) -> \(newName)")
+        
+        guard !groupID.isEmpty && !taskReminderId.isEmpty && !newName.isEmpty else {
+            print("❌ Invalid parameters: groupID='\(groupID)', taskReminderId='\(taskReminderId)', newName='\(newName)'")
+            throw CKServiceError.invalidZone
+        }
+            
+        try await ensureZone()
+        
+        let predicate = NSPredicate(format: "reminderId == %@", taskReminderId)
+        let query = CKQuery(recordType: RecordType.taskUsageSummary, predicate: predicate)
+        
+        let db = CKContainer.default().privateCloudDatabase
+        let records = try await performQuery(query, in: db)
+        
+        guard !records.isEmpty else {
+            print("⚠️ No tasks found with reminderId: \(taskReminderId)")
+            print("❌ Task not found in CloudKit for reminderId: \(taskReminderId)")
+            return
+        }
+            
+        print("📊 Found \(records.count) task records to update")
+            
+        var recordsToUpdate: [CKRecord] = []
+        for record in records {
+            let oldName = record["taskName"] as? String ?? "Unknown"
+            print("  - Updating task name from '\(oldName)' to '\(newName)'")
+            record["taskName"] = newName as CKRecordValue
+            recordsToUpdate.append(record)
+        }
+        
+        if !recordsToUpdate.isEmpty {
+            print("📤 Uploading \(recordsToUpdate.count) records to CloudKit...")
+            try await uploadRecordsInBatches(recordsToUpdate)
+            print("✅ Updated \(recordsToUpdate.count) records with new task name")
+        } else {
+            print("⚠️ No records to update")
+        }
+    }
+        
+    func deleteTask(groupID: String, taskReminderId: String) async throws {
+        print("🗑️ Deleting task from CloudKit: \(taskReminderId)")
+        
+        guard !groupID.isEmpty && !taskReminderId.isEmpty else {
+            print("❌ Invalid parameters: groupID='\(groupID)', taskReminderId='\(taskReminderId)'")
+            throw CKServiceError.invalidZone
+        }
+        
+        try await ensureZone()
+        
+        let predicate = NSPredicate(format: "reminderId == %@", taskReminderId)
+        let query = CKQuery(recordType: RecordType.taskUsageSummary, predicate: predicate)
+        
+        let db = CKContainer.default().privateCloudDatabase
+        let records = try await performQuery(query, in: db)
+        
+        print("📊 Found \(records.count) task records to delete")
+        
+        let recordIDs = records.map { $0.recordID }
+        
+        if !recordIDs.isEmpty {
+            print("📤 Deleting \(recordIDs.count) records from CloudKit...")
+            try await deleteRecordsInBatches(recordIDs)
+            print("✅ Deleted \(recordIDs.count) task records")
+        } else {
+            print("⚠️ No records to delete - task may not exist in CloudKit")
+        }
+    }
+    
     struct WorkRecord {
         let recordID: CKRecord.ID
         let memberRef: CKRecord.Reference
