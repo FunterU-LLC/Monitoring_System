@@ -565,16 +565,16 @@ final class CloudKitService {
         var totalCompleted = 0
         
         for sessionRecord in sessionRecords {
-            guard let endTime = sessionRecord["endTime"] as? Date,
-                  let completedCount = sessionRecord["completedCount"] as? Int else { continue }
+            guard let endTime = sessionRecord["endTime"] as? Date else { continue }
             
-            totalCompleted += completedCount
-            
+            // completedCountは無視して、実際のタスクから計算する
             let sessionRef = CKRecord.Reference(recordID: sessionRecord.recordID, action: .deleteSelf)
             let taskSummaries = try await fetchTaskSummariesForManagement(sessionRef: sessionRef)
             
+            // 実際のisCompletedフラグから計算
             let sessionCompletedCount = taskSummaries.filter { $0.isCompleted }.count
             totalCompleted += sessionCompletedCount
+            
             
             for task in taskSummaries {
                 let key = task.reminderId.isEmpty ? task.taskName : task.reminderId
@@ -599,7 +599,7 @@ final class CloudKitService {
         }
         
         let mergedCompletedCount = merged.values.filter { $0.isCompleted }.count
-            
+        
         let sortedTasks = Array(merged.values).sorted { $0.totalSeconds > $1.totalSeconds }
         print("📊 Fetched \(sortedTasks.count) tasks, \(totalCompleted) completed")
         return (sortedTasks, mergedCompletedCount)  // 実際の完了数を返す

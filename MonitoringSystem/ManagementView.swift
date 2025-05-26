@@ -443,7 +443,7 @@ private extension ManagementView {
                 .shadow(color: .black.opacity(0.05), radius: 2, x: 0, y: 1)
         )
     }
-
+    
     // カスタムユーザー選択カード
     struct UserSelectionCard: View {
         let userName: String
@@ -661,7 +661,7 @@ private extension ManagementView {
         
         print("✅ [ManagementView] refreshSummaries completed")
     }
-
+    // loadGroupMembersメソッドは以下のように修正
     func loadGroupMembers() async {
         guard !currentGroupID.isEmpty else {
             await MainActor.run {
@@ -672,6 +672,7 @@ private extension ManagementView {
         }
         
         await MainActor.run {
+            isLoadingMembers = true  // これは残す
             isUpdatingCloudKit = true
             cloudKitUpdateMessage = "グループメンバーを取得中です..."
         }
@@ -687,6 +688,7 @@ private extension ManagementView {
                 } else {
                     selectedUser = ""
                 }
+                isLoadingMembers = false  // これは残す
                 isUpdatingCloudKit = false
                 print("✅ Loaded \(members.count) group members")
             }
@@ -694,6 +696,7 @@ private extension ManagementView {
             await MainActor.run {
                 groupMembers = [userName]
                 selectedUser = userName
+                isLoadingMembers = false  // これは残す
                 isUpdatingCloudKit = false
                 print("❌ Failed to load group members: \(error)")
             }

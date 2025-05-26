@@ -131,7 +131,8 @@ struct FinishTaskPopupView: View {
                     }
                     
                     Task {
-                        let sessionRecord = createSessionRecord(summaries: summaries, completedCount: 0)
+                        let actualCompletedCount = summaries.filter { $0.isCompleted }.count
+                        let sessionRecord = createSessionRecord(summaries: summaries, completedCount: actualCompletedCount)
                         await uploadToCloudKit(sessionRecord: sessionRecord)
                     }
                     
@@ -230,7 +231,8 @@ struct FinishTaskPopupView: View {
                     appUsageManager.clearRecognizedUsage()
                     
                     Task {
-                        let sessionRecord = createSessionRecord(summaries: summaries, completedCount: completedTasks.count)
+                        let actualCompletedCount = summaries.filter { $0.isCompleted }.count
+                        let sessionRecord = createSessionRecord(summaries: summaries, completedCount: actualCompletedCount)
                         await uploadToCloudKit(sessionRecord: sessionRecord)
                     }
                         

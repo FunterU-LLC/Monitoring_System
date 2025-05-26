@@ -19,13 +19,18 @@ struct UserNameInputSheet: View {
     @State private var isRegistering: Bool = false
     @State private var errorMessage: String? = nil
     
-    var groupID: String
-    var groupName: String
+    @Binding var groupID: String  // Bindingに変更
+    @Binding var groupName: String
     var onFinish: () -> Void
 
     var body: some View {
         VStack(spacing: 20) {
             Text("ユーザーネームを入力してください").font(.headline)
+            
+            // デバッグ情報を追加
+            Text("GroupID: \(groupID)")
+                .font(.caption)
+                .foregroundColor(.gray)
             
             TextField("ユーザーネーム", text: $inputName)
                 .textFieldStyle(.roundedBorder)
@@ -54,12 +59,20 @@ struct UserNameInputSheet: View {
         .frame(width: 340)
         .onAppear {
             inputName = userName
+            print("🔍 UserNameInputSheet.onAppear - groupID: '\(groupID)'")
+            print("   - groupID.isEmpty: \(groupID.isEmpty)")
+            print("   - groupID.count: \(groupID.count)")
         }
     }
     
     private func registerMember() async {
         let trimmedName = inputName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedName.isEmpty else { return }
+        
+        print("📤 registerMember called with:")
+        print("   - groupID: '\(groupID)'")
+        print("   - groupID.isEmpty: \(groupID.isEmpty)")
+        print("   - userName: '\(trimmedName)'")
         
         // groupIDのバリデーション
         guard !groupID.isEmpty else {
@@ -76,8 +89,6 @@ struct UserNameInputSheet: View {
         }
         
         do {
-            print("📤 Registering member with groupID: \(groupID), userName: \(trimmedName)")  // デバッグログ
-            
             // CloudKitにメンバーを登録
             _ = try await CloudKitService.shared.createOrUpdateMember(
                 groupID: groupID,
@@ -189,11 +200,10 @@ struct MonitoringSystemApp: App {
                 }
                 .frame(width: 500, height: 300)
             }
-            // sheet部分を修正
             .sheet(isPresented: $showUserNameSheet) {
                 UserNameInputSheet(
-                    groupID: pendingGroupID,
-                    groupName: pendingGroupName.isEmpty ? "Unknown Group" : pendingGroupName
+                    groupID: $pendingGroupID,  // Bindingとして渡す
+                    groupName: $pendingGroupName  // Bindingとして渡す
                 ) {
                     if !pendingGroupID.isEmpty {
                         GroupInfoStore.shared.groupInfo = GroupInfo(
@@ -207,9 +217,6 @@ struct MonitoringSystemApp: App {
                     pendingGroupName = ""
                     pendingOwnerName = ""
                     showUserNameSheet = false
-                }
-                .onAppear {
-                    print("📱 UserNameInputSheet appeared with groupID: \(pendingGroupID)")
                 }
             }
             .task {
@@ -356,7 +363,7 @@ struct MonitoringSystemApp: App {
             }
         }
     }
-    // showJoinConfirmationメソッドを修正
+    
     private func showJoinConfirmation(groupName: String, ownerName: String, recordID: String) {
         print("🔍 showJoinConfirmation called with recordID: \(recordID)")
         
@@ -387,6 +394,7 @@ struct MonitoringSystemApp: App {
             }
         }
     }
+
 
     private func fetchShareMetadataDirectly(recordID: String, setDirectGroupIDOnFailure: Bool = false) {
         print("🔍 Fetching share metadata directly with record ID: \(recordID)")
