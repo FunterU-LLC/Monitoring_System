@@ -18,7 +18,7 @@ class CameraManager: NSObject {
 
     private func configureSession() {
         guard let device = AVCaptureDevice.default(for: .video) else {
-            print("カメラデバイスが見つかりません。"); return
+            return
         }
         do {
             let input = try AVCaptureDeviceInput(device: device)
@@ -30,7 +30,6 @@ class CameraManager: NSObject {
 
             captureSession.sessionPreset = .medium
         } catch {
-            print("カメラ入力の設定に失敗: \(error)")
         }
     }
 
@@ -56,4 +55,3 @@ extension CameraManager: AVCaptureVideoDataOutputSampleBufferDelegate {
         try? handler.perform([request])
     }
 }
-

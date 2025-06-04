@@ -47,12 +47,9 @@ struct GroupCreationSheet: View {
         defer { isCreating = false }
 
         do {
-            print("📡 createGroup() 呼び出し開始")
             let result = try await CloudKitService.shared
                 .createGroup(ownerName: ownerName,
                              groupName: groupName)
-
-            print("✅ createGroup 成功 URL:", result.url)
 
             presentShareSheet(url: result.url)
 
@@ -66,7 +63,6 @@ struct GroupCreationSheet: View {
                 dismiss()
             }
         } catch {
-            print("❌ createGroup 失敗:", error)
             errorMsg = error.localizedDescription
         }
     }

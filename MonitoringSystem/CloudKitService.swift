@@ -38,7 +38,6 @@ final class CloudKitService {
                 self.isOnline = path.status == .satisfied
                 
                 if wasOffline && self.isOnline {
-                    print("🌐 Network restored - uploading pending data")
                     await self.uploadPendingData()
                 }
             }
@@ -179,7 +178,6 @@ final class CloudKitService {
     func createGroup(ownerName: String,
                      groupName: String) async throws -> (url: URL, groupID: String) {
 
-        print("🛠️ CloudKitService.createGroup – start")
         try await ensureZone()
         let zoneID = Self.workZoneID
 
@@ -213,13 +211,10 @@ final class CloudKitService {
 
                 case .failure(let error):
                     if let ckErr = error as? CKError {
-                        print("CKError: \(ckErr.code.rawValue) – \(ckErr.code)")
-
                         if let partial =
                             ckErr.userInfo[CKPartialErrorsByItemIDKey] as? [CKRecord.ID : Error] {
 
                             for (id, subError) in partial {
-                                print("• \(id.recordName) → \(subError.localizedDescription)")
                             }
                         }
                     }
@@ -231,7 +226,6 @@ final class CloudKitService {
     }
     
     func acceptShare(from metadata: CKShare.Metadata) async throws {
-        print("🌩 CloudKitService: Accepting share for \(metadata.share.recordID.recordName)")
         
         return try await withCheckedThrowingContinuation { continuation in
             let operation = CKAcceptSharesOperation(shareMetadatas: [metadata])
@@ -239,19 +233,17 @@ final class CloudKitService {
             operation.perShareResultBlock = { metadata, result in
                 switch result {
                 case .success(let share):
-                    print("✅ Share accepted: \(share.recordID.recordName)")
+                    break
                 case .failure(let error):
-                    print("❌ Error accepting individual share: \(error.localizedDescription)")
+                    break
                 }
             }
             
             operation.acceptSharesResultBlock = { result in
                 switch result {
                 case .success:
-                    print("✅ Accept shares operation completed successfully")
                     continuation.resume(returning: ())
                 case .failure(let error):
-                    print("❌ Overall operation failed: \(error.localizedDescription)")
                     continuation.resume(throwing: error)
                 }
             }
@@ -261,15 +253,12 @@ final class CloudKitService {
     }
 
     func uploadSession(groupID: String, userName: String, sessionRecord: SessionRecordModel) async throws {
-        print("📤 Starting session upload - Network status: \(isOnline ? "Online" : "Offline")")
         
         let portableSession = convertToPortableSession(sessionRecord)
         
         if isOnline {
-            print("☁️ Uploading directly to CloudKit")
             try await uploadSessionDirectly(groupID: groupID, userName: userName, session: portableSession)
         } else {
-            print("📴 Device offline - saving to temporary storage")
             saveToTemporaryStorage(groupID: groupID, userName: userName, session: portableSession)
         }
     }
@@ -298,7 +287,6 @@ final class CloudKitService {
     }
 
     private func uploadSessionDirectly(groupID: String, userName: String, session: PortableSessionRecord) async throws {
-        print("☁️ Uploading session directly to CloudKit")
         
         let memberID = try await createOrUpdateMember(groupID: groupID, userName: userName)
         let memberRecordID = CKRecord.ID(recordName: memberID, zoneID: Self.workZoneID)
@@ -343,14 +331,12 @@ final class CloudKitService {
         }
         
         try await uploadRecordsInBatches(recordsToSave)
-        print("✅ Successfully uploaded session to CloudKit (total records: \(recordsToSave.count))")
     }
 
     private func saveToTemporaryStorage(groupID: String, userName: String, session: PortableSessionRecord) {
         let offlineData = OfflineSessionData(groupID: groupID, userName: userName, sessionData: session)
         pendingUploads.append(offlineData)
         savePendingUploads()
-        print("💾 Saved session to temporary storage. Total pending uploads: \(pendingUploads.count)")
     }
     
     private func savePendingUploads() {
@@ -359,35 +345,27 @@ final class CloudKitService {
             try FileManager.default.createDirectory(at: tempDataURL.deletingLastPathComponent(),
                                                    withIntermediateDirectories: true)
             try data.write(to: tempDataURL)
-            print("💾 Saved \(pendingUploads.count) pending uploads to disk")
         } catch {
-            print("❌ Failed to save pending uploads: \(error)")
         }
     }
     
     private func loadPendingUploads() {
         guard FileManager.default.fileExists(atPath: tempDataURL.path) else {
-            print("📂 No pending uploads file found")
             return
         }
         
         do {
             let data = try Data(contentsOf: tempDataURL)
             pendingUploads = try JSONDecoder().decode([OfflineSessionData].self, from: data)
-            print("📂 Loaded \(pendingUploads.count) pending uploads from disk")
         } catch {
-            print("❌ Failed to load pending uploads: \(error)")
             pendingUploads = []
         }
     }
     
     private func uploadPendingData() async {
         guard !pendingUploads.isEmpty else {
-            print("✅ No pending uploads to process")
             return
         }
-        
-        print("🔄 Processing \(pendingUploads.count) pending uploads...")
         
         var successfulUploads: [UUID] = []
         
@@ -397,9 +375,7 @@ final class CloudKitService {
                                               userName: upload.userName,
                                               session: upload.sessionData)
                 successfulUploads.append(upload.id)
-                print("✅ Successfully uploaded pending session: \(upload.id)")
             } catch {
-                print("❌ Failed to upload pending session \(upload.id): \(error)")
             }
         }
         
@@ -408,18 +384,15 @@ final class CloudKitService {
         }
         
         savePendingUploads()
-        print("🔄 Pending upload processing complete. Successful: \(successfulUploads.count), Remaining: \(pendingUploads.count)")
     }
     
     func createOrUpdateMember(groupID: String, userName: String) async throws -> String {
-        print("👤 Creating/updating member: \(userName) in group: \(groupID)")
         try await ensureZone()
         
         let groupRecordID = CKRecord.ID(recordName: groupID, zoneID: Self.workZoneID)
         let groupRef = CKRecord.Reference(recordID: groupRecordID, action: .deleteSelf)
         
         if let existingMemberID = try await findMember(groupID: groupID, userName: userName) {
-            print("👤 Member already exists: \(existingMemberID)")
             return existingMemberID
         }
         
@@ -433,10 +406,8 @@ final class CloudKitService {
         return try await withCheckedThrowingContinuation { continuation in
             db.save(memberRecord) { record, error in
                 if let error = error {
-                    print("❌ Failed to create member: \(error.localizedDescription)")
                     continuation.resume(throwing: error)
                 } else if let record = record {
-                    print("✅ Member created: \(record.recordID.recordName)")
                     continuation.resume(returning: record.recordID.recordName)
                 } else {
                     continuation.resume(throwing: CKServiceError.recordNotFound)
@@ -481,7 +452,6 @@ final class CloudKitService {
         let db = CKContainer.default().privateCloudDatabase
         
         for (index, chunk) in records.chunked(into: batchSize).enumerated() {
-            print("📦 Uploading batch \(index + 1) (\(chunk.count) records)")
             
             let operation = CKModifyRecordsOperation(recordsToSave: chunk, recordIDsToDelete: nil)
             operation.savePolicy = .ifServerRecordUnchanged
@@ -491,10 +461,8 @@ final class CloudKitService {
                 operation.modifyRecordsResultBlock = { result in
                     switch result {
                     case .success:
-                        print("✅ Batch \(index + 1) upload successful")
                         continuation.resume(returning: ())
                     case .failure(let error):
-                        print("❌ Batch \(index + 1) upload failed: \(error.localizedDescription)")
                         continuation.resume(throwing: error)
                     }
                 }
@@ -505,10 +473,8 @@ final class CloudKitService {
     }
 
     func fetchGroupMembers(groupID: String) async throws -> [String] {
-        print("👥 Fetching group members for: \(groupID)")
         
         guard !groupID.isEmpty else {
-            print("⚠️ Missing groupID")
             return []
         }
         
@@ -528,22 +494,18 @@ final class CloudKitService {
             record["userName"] as? String
         }
         
-        print("👥 Found \(memberNames.count) members: \(memberNames)")
         return memberNames
     }
     
     func fetchUserSummaries(groupID: String, userName: String, forDays days: Int) async throws -> ([TaskUsageSummary], Int) {
-        print("📊 Fetching user summaries for: \(userName), days: \(days)")
         
         guard !groupID.isEmpty && !userName.isEmpty else {
-            print("⚠️ Missing groupID or userName")
             return ([], 0)
         }
         
         try await ensureZone()
         
         guard let memberID = try await findMember(groupID: groupID, userName: userName) else {
-            print("⚠️ Member not found: \(userName)")
             return ([], 0)
         }
         
@@ -567,11 +529,9 @@ final class CloudKitService {
         for sessionRecord in sessionRecords {
             guard let endTime = sessionRecord["endTime"] as? Date else { continue }
             
-            // completedCountは無視して、実際のタスクから計算する
             let sessionRef = CKRecord.Reference(recordID: sessionRecord.recordID, action: .deleteSelf)
             let taskSummaries = try await fetchTaskSummariesForManagement(sessionRef: sessionRef)
             
-            // 実際のisCompletedフラグから計算
             let sessionCompletedCount = taskSummaries.filter { $0.isCompleted }.count
             totalCompleted += sessionCompletedCount
             
@@ -601,8 +561,7 @@ final class CloudKitService {
         let mergedCompletedCount = merged.values.filter { $0.isCompleted }.count
         
         let sortedTasks = Array(merged.values).sorted { $0.totalSeconds > $1.totalSeconds }
-        print("📊 Fetched \(sortedTasks.count) tasks, \(totalCompleted) completed")
-        return (sortedTasks, mergedCompletedCount)  // 実際の完了数を返す
+        return (sortedTasks, mergedCompletedCount)
     }
     
     private func fetchTaskSummariesForManagement(sessionRef: CKRecord.Reference) async throws -> [TaskUsageSummary] {
@@ -678,7 +637,6 @@ final class CloudKitService {
     }
 
     func fetchAllGroupData(groupID: String) async throws -> [String: [PortableSessionRecord]] {
-        print("📥 Fetching all group data for: \(groupID)")
         try await ensureZone()
         
         let groupRecordID = CKRecord.ID(recordName: groupID, zoneID: Self.workZoneID)
@@ -698,10 +656,8 @@ final class CloudKitService {
             let memberRef = CKRecord.Reference(recordID: memberRecord.recordID, action: .deleteSelf)
             let sessionData = try await fetchUserSessionData(memberRef: memberRef)
             groupData[userName] = sessionData
-            print("📥 Fetched \(sessionData.count) sessions for user: \(userName)")
         }
         
-        print("📥 Group data fetch complete. Users: \(groupData.keys.count)")
         return groupData
     }
     
@@ -806,7 +762,6 @@ final class CloudKitService {
     }
 
     func initializeCloudKitSchema() async throws {
-        print("🔧 Initializing CloudKit schema...")
         try await ensureZone()
         
         let sampleGroupID = UUID().uuidString
@@ -815,23 +770,16 @@ final class CloudKitService {
         try await createSampleMember(groupID: sampleGroupID, userName: sampleUserName)
         
         try await createSampleSession(groupID: sampleGroupID, userName: sampleUserName)
-        
-        print("✅ CloudKit schema initialized successfully")
     }
 
     func setupCloudKitAndSyncPendingData() async throws {
-        print("🚀 Setting up CloudKit schema and syncing pending data...")
         
         try await initializeCloudKitSchema()
         
         if isOnline {
-            print("🔄 Syncing pending uploads...")
             await uploadPendingData()
         } else {
-            print("⚠️ Device offline - pending data will sync when online")
         }
-        
-        print("✅ CloudKit setup complete")
     }
 
     private func createSampleMember(groupID: String, userName: String) async throws {
@@ -856,8 +804,6 @@ final class CloudKitService {
                 }
             }
         }
-        
-        print("✅ Member record type created")
     }
 
     private func createSampleSession(groupID: String, userName: String) async throws {
@@ -900,8 +846,6 @@ final class CloudKitService {
         
         let recordIDsToDelete = recordsToSave.map { $0.recordID }
         try await deleteRecords(recordIDsToDelete)
-        
-        print("✅ Session, Task, and App record types created")
     }
 
     private func deleteRecords(_ recordIDs: [CKRecord.ID]) async throws {
@@ -921,7 +865,6 @@ final class CloudKitService {
         }
     }
         func deleteAllCloudKitData() async throws {
-            print("🗑️ Deleting ALL CloudKit data by removing zone...")
             
             let db = CKContainer.default().privateCloudDatabase
             
@@ -931,10 +874,8 @@ final class CloudKitService {
                 operation.modifyRecordZonesResultBlock = { result in
                     switch result {
                     case .success:
-                        print("✅ Zone deleted successfully")
                         continuation.resume(returning: ())
                     case .failure(let error):
-                        print("❌ Failed to delete zone: \(error)")
                         continuation.resume(throwing: error)
                     }
                 }
@@ -942,12 +883,9 @@ final class CloudKitService {
             }
             
             try await ensureZone()
-            
-            print("✅ All CloudKit data deleted and zone recreated")
         }
         
         func deleteAllRecords() async throws {
-            print("🗑️ Deleting all records by type...")
             
             let recordTypes = [
                 RecordType.appUsage,
@@ -959,13 +897,9 @@ final class CloudKitService {
             for recordType in recordTypes {
                 do {
                     try await deleteAllRecordsOfType(recordType)
-                    print("✅ Deleted all \(recordType) records")
                 } catch {
-                    print("❌ Failed to delete \(recordType) records: \(error)")
                 }
             }
-            
-            print("✅ Record deletion completed")
         }
         
         private func deleteAllRecordsOfType(_ recordType: String) async throws {
@@ -975,12 +909,10 @@ final class CloudKitService {
             let records = try await performQuery(query, in: db)
             
             guard !records.isEmpty else {
-                print("ℹ️ No \(recordType) records to delete")
                 return
             }
             
             let recordIDs = records.map { $0.recordID }
-            print("🗑️ Deleting \(recordIDs.count) \(recordType) records...")
             
             try await deleteRecordsInBatches(recordIDs)
         }
@@ -997,10 +929,8 @@ final class CloudKitService {
                     operation.modifyRecordsResultBlock = { result in
                         switch result {
                         case .success:
-                            print("✅ Batch deletion successful (\(chunk.count) records)")
                             continuation.resume(returning: ())
                         case .failure(let error):
-                            print("❌ Batch deletion failed: \(error)")
                             continuation.resume(throwing: error)
                         }
                     }
@@ -1010,10 +940,8 @@ final class CloudKitService {
         }
         
         func deleteUserData(groupID: String, userName: String) async throws {
-            print("🗑️ Deleting data for user: \(userName)")
             
             guard let memberID = try await findMember(groupID: groupID, userName: userName) else {
-                print("⚠️ User not found: \(userName)")
                 return
             }
             
@@ -1052,14 +980,11 @@ final class CloudKitService {
             
             if !recordsToDelete.isEmpty {
                 try await deleteRecordsInBatches(recordsToDelete)
-                print("✅ Deleted \(recordsToDelete.count) records for user: \(userName)")
             } else {
-                print("ℹ️ No data found for user: \(userName)")
             }
         }
     
         func printCloudKitDataStats() async throws {
-            print("📊 CloudKit Data Statistics:")
             
             let recordTypes = [RecordType.group, RecordType.member, RecordType.sessionRecord,
                               RecordType.taskUsageSummary, RecordType.appUsage]
@@ -1068,9 +993,7 @@ final class CloudKitService {
                 do {
                     let query = CKQuery(recordType: recordType, predicate: NSPredicate(value: true))
                     let records = try await performQuery(query, in: CKContainer.default().privateCloudDatabase)
-                    print("  \(recordType): \(records.count) records")
                 } catch {
-                    print("  \(recordType): Error - \(error.localizedDescription)")
                 }
             }
         }
@@ -1078,7 +1001,6 @@ final class CloudKitService {
     func clearTemporaryStorage() {
         pendingUploads.removeAll()
         try? FileManager.default.removeItem(at: tempDataURL)
-        print("🗑️ Cleared all temporary storage")
     }
     
     func getPendingUploadCount() -> Int {
@@ -1087,10 +1009,8 @@ final class CloudKitService {
     
     func forceSyncPendingData() async {
         if isOnline {
-            print("🔄 Force syncing pending data...")
             await uploadPendingData()
         } else {
-            print("⚠️ Cannot sync: Device is offline")
         }
     }
     
@@ -1099,10 +1019,8 @@ final class CloudKitService {
     }
         
     func updateTaskCompletion(groupID: String, taskReminderId: String, isCompleted: Bool) async throws {
-        print("🔄 Updating task completion in CloudKit: \(taskReminderId) -> \(isCompleted)")
             
         guard !groupID.isEmpty && !taskReminderId.isEmpty else {
-            print("❌ Invalid parameters: groupID='\(groupID)', taskReminderId='\(taskReminderId)'")
             throw CKServiceError.invalidZone
         }
             
@@ -1115,12 +1033,8 @@ final class CloudKitService {
         let records = try await performQuery(query, in: db)
             
         guard !records.isEmpty else {
-            print("⚠️ No tasks found with reminderId: \(taskReminderId)")
-            print("❌ Task not found in CloudKit for reminderId: \(taskReminderId)")
             return
         }
-            
-        print("📊 Found \(records.count) task records to update")
             
         var recordsToUpdate: [CKRecord] = []
         var sessionRecordsToUpdate: Set<CKRecord.ID> = []
@@ -1128,19 +1042,14 @@ final class CloudKitService {
         for record in records {
             record["isCompleted"] = isCompleted as CKRecordValue
             recordsToUpdate.append(record)
-            print("  - Updating task record: \(record.recordID.recordName)")
                 
-            // セッションレコードも更新が必要な場合はIDを収集
             if let sessionRef = record["sessionRef"] as? CKRecord.Reference {
                 sessionRecordsToUpdate.insert(sessionRef.recordID)
             }
         }
             
-        // セッションの完了数を更新
         for sessionID in sessionRecordsToUpdate {
-            print("  - Updating session record: \(sessionID.recordName)")
             if let sessionRecord = try? await db.record(for: sessionID) {
-                // セッション内のタスクを再集計
                 let sessionRef = CKRecord.Reference(recordID: sessionID, action: .deleteSelf)
                 let taskPredicate = NSPredicate(format: "sessionRef == %@", sessionRef)
                 let taskQuery = CKQuery(recordType: RecordType.taskUsageSummary, predicate: taskPredicate)
@@ -1149,24 +1058,18 @@ final class CloudKitService {
                 let completedCount = tasks.filter { ($0["isCompleted"] as? Bool) ?? false }.count
                 sessionRecord["completedCount"] = completedCount as CKRecordValue
                 recordsToUpdate.append(sessionRecord)
-                print("    Session completed count updated to: \(completedCount)")
             }
         }
             
         if !recordsToUpdate.isEmpty {
-            print("📤 Uploading \(recordsToUpdate.count) records to CloudKit...")
             try await uploadRecordsInBatches(recordsToUpdate)
-            print("✅ Updated \(recordsToUpdate.count) records for task completion")
         } else {
-            print("⚠️ No records to update")
         }
     }
         
     func updateTaskName(groupID: String, taskReminderId: String, newName: String) async throws {
-        print("🔄 Updating task name in CloudKit: \(taskReminderId) -> \(newName)")
         
         guard !groupID.isEmpty && !taskReminderId.isEmpty && !newName.isEmpty else {
-            print("❌ Invalid parameters: groupID='\(groupID)', taskReminderId='\(taskReminderId)', newName='\(newName)'")
             throw CKServiceError.invalidZone
         }
             
@@ -1179,35 +1082,25 @@ final class CloudKitService {
         let records = try await performQuery(query, in: db)
         
         guard !records.isEmpty else {
-            print("⚠️ No tasks found with reminderId: \(taskReminderId)")
-            print("❌ Task not found in CloudKit for reminderId: \(taskReminderId)")
             return
         }
-            
-        print("📊 Found \(records.count) task records to update")
             
         var recordsToUpdate: [CKRecord] = []
         for record in records {
             let oldName = record["taskName"] as? String ?? "Unknown"
-            print("  - Updating task name from '\(oldName)' to '\(newName)'")
             record["taskName"] = newName as CKRecordValue
             recordsToUpdate.append(record)
         }
         
         if !recordsToUpdate.isEmpty {
-            print("📤 Uploading \(recordsToUpdate.count) records to CloudKit...")
             try await uploadRecordsInBatches(recordsToUpdate)
-            print("✅ Updated \(recordsToUpdate.count) records with new task name")
         } else {
-            print("⚠️ No records to update")
         }
     }
         
     func deleteTask(groupID: String, taskReminderId: String) async throws {
-        print("🗑️ Deleting task from CloudKit: \(taskReminderId)")
         
         guard !groupID.isEmpty && !taskReminderId.isEmpty else {
-            print("❌ Invalid parameters: groupID='\(groupID)', taskReminderId='\(taskReminderId)'")
             throw CKServiceError.invalidZone
         }
         
@@ -1219,16 +1112,11 @@ final class CloudKitService {
         let db = CKContainer.default().privateCloudDatabase
         let records = try await performQuery(query, in: db)
         
-        print("📊 Found \(records.count) task records to delete")
-        
         let recordIDs = records.map { $0.recordID }
         
         if !recordIDs.isEmpty {
-            print("📤 Deleting \(recordIDs.count) records from CloudKit...")
             try await deleteRecordsInBatches(recordIDs)
-            print("✅ Deleted \(recordIDs.count) task records")
         } else {
-            print("⚠️ No records to delete - task may not exist in CloudKit")
         }
     }
     

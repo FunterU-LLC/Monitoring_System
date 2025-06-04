@@ -168,26 +168,6 @@ struct ContentView: View {
     var body: some View {
         GeometryReader { geo in
             ZStack {
-                VStack(spacing: 0) {
-                    AdDummyView(position: "Top")
-                        .frame(height: 50)
-                    
-                    Spacer()
-                    
-                    AdDummyView(position: "Bottom")
-                        .frame(height: 50)
-                }
-                
-                HStack(spacing: 0) {
-                    AdDummyView(position: "Left")
-                        .frame(width: 50)
-                    
-                    Spacer()
-                    
-                    AdDummyView(position: "Right")
-                        .frame(width: 50)
-                }
-                
                 VStack {
                     Spacer()
                     Button("作業開始") {
@@ -208,29 +188,6 @@ struct ContentView: View {
                     Spacer()
                     
                     HStack {
-                        Button("追加報告") {
-                            print("追加報告ボタンをクリック")
-                            // デバッグ用ボタンなどで実行
-//                            Task {
-//                                do {
-//                                    try await CloudKitService.shared.initializeCloudKitSchema()
-//                                    print("スキーマ初期化完了")
-//                                } catch {
-//                                    print("スキーマ初期化失敗: \(error)")
-//                                }
-//                            }
-                        }
-                        .disabled(false)
-                        .buttonStyle(FocusableButtonStyle(
-                            isFocused: (focusedButton == .additionalReport),
-                            isEnabled: true
-                        ))
-                        .onHover { inside in
-                            if inside {
-                                focusedButton = .additionalReport
-                            }
-                        }
-                        
                         Spacer()
                         
                         Button("マネジメント") {
@@ -264,7 +221,6 @@ struct ContentView: View {
                     Spacer().frame(height: 12)
                     Button("グループ情報をリセット (Debug)") {
                         currentGroupID = ""
-                        print("🗑️ currentGroupID cleared (debug)")
                         GroupInfoStore.shared.groupInfo = nil
                     }
                     .buttonStyle(.bordered)
@@ -309,46 +265,27 @@ struct ContentView: View {
         .sheet(isPresented: $showCameraTestTab) {
             CameraTestTabView()
         }
-        if let info = groupInfoStore.groupInfo {
-            VStack(alignment: .trailing) {
-                Button(info.groupName) {
-                    withAnimation { showGroupDetail.toggle() }
-                }
-                .padding(8)
-                .background(.thinMaterial)
-                .cornerRadius(8)
-                .shadow(radius: 2)
-
-                if showGroupDetail {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("グループ名: \(info.groupName)")
-                        Text("オーナー: \(info.ownerName)")
-                        Text("ユーザーネーム: \(userName)")
+        .overlay(
+            Group {
+                if let info = groupInfoStore.groupInfo {
+                    VStack {
+                        Spacer()
+                        
                         HStack {
-                            Text("招待用URL:")
-                            TextField("", text: .constant("monitoringsystem://share/\(info.recordID)"))
-                                .textFieldStyle(.roundedBorder)
-                                .disabled(true)
-                            Button("コピー") {
-                                let url = "monitoringsystem://share/\(info.recordID)"
-                                NSPasteboard.general.clearContents()
-                                NSPasteboard.general.setString(url, forType: .string)
-                            }
+                            GroupInfoFloatingButton(
+                                groupInfo: info,
+                                userName: userName,
+                                isExpanded: $showGroupDetail
+                            )
+                            
+                            Spacer()
                         }
-                        Button("共有") {
-                            shareGroupURL("monitoringsystem://share/\(info.recordID)")
-                        }
-                        .padding(.top, 8)
+                        .padding(.horizontal, 24)
+                        .padding(.bottom, 24)
                     }
-                    .padding()
-                    .background(.thinMaterial)
-                    .cornerRadius(12)
-                    .shadow(radius: 4)
-                    .transition(.move(edge: .top).combined(with: .opacity))
                 }
             }
-            .padding([.top, .trailing], 16)
-        }
+        )
     }
     
     func shareGroupURL(_ urlString: String) {
@@ -381,7 +318,7 @@ struct ContentView: View {
     private func triggerAction(for focus: MainButtonFocus) {
         switch focus {
         case .additionalReport:
-            print("追加報告ボタンを押下 (キーボード操作)")
+            break
         case .start:
             popupCoordinator.showTaskStartPopup = true
         case .management:
@@ -399,12 +336,399 @@ struct ContentView: View {
     }
 }
 
-struct AdDummyView: View {
-    let position: String
+struct GroupInfoFloatingButton: View {
+    let groupInfo: GroupInfo
+    let userName: String
+    @Binding var isExpanded: Bool
+    @State private var isHovering = false
+    @State private var showShareMenu = false
+    @State private var copySuccess = false
+    
     var body: some View {
-        Rectangle()
-            .foregroundColor(.gray.opacity(0.2))
-            .overlay(Text("Ad Area (\(position))").foregroundColor(.black))
+        VStack(alignment: .trailing, spacing: 12) {
+            if isExpanded {
+                GroupDetailPanel(
+                    groupInfo: groupInfo,
+                    userName: userName,
+                    copySuccess: $copySuccess,
+                    showShareMenu: $showShareMenu,
+                    onClose: {
+                        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                            isExpanded = false
+                        }
+                    }
+                )
+                .transition(.asymmetric(
+                    insertion: .scale(scale: 0.8, anchor: .bottomTrailing)
+                        .combined(with: .opacity)
+                        .combined(with: .offset(x: 0, y: 20)),
+                    removal: .scale(scale: 0.8, anchor: .bottomTrailing)
+                        .combined(with: .opacity)
+                        .combined(with: .offset(x: 0, y: 20))
+                ))
+            }
+            
+            Button {
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                    isExpanded.toggle()
+                }
+            } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: "person.3.fill")
+                        .font(.system(size: 20))
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [.white, .white.opacity(0.8)],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                        )
+                    
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("参加中のグループ")
+                            .font(.system(size: 11))
+                            .foregroundColor(.white.opacity(0.8))
+                            .lineLimit(1)
+                        
+                        Text(groupInfo.groupName)
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(.white)
+                            .lineLimit(1)
+                    }
+                    
+                    Image(systemName: isExpanded ? "chevron.down.circle.fill" : "chevron.up.circle.fill")
+                        .font(.system(size: 16))
+                        .foregroundColor(.white.opacity(0.9))
+                        .rotationEffect(.degrees(isExpanded ? 180 : 0))
+                }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 14)
+                .background(
+                    Capsule()
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    Color.accentColor,
+                                    Color.accentColor.opacity(0.8)
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .shadow(color: .black.opacity(0.2), radius: 10, x: 0, y: 5)
+                        .overlay(
+                            Capsule()
+                                .strokeBorder(
+                                    LinearGradient(
+                                        colors: [
+                                            Color.white.opacity(0.3),
+                                            Color.white.opacity(0.1)
+                                        ],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    ),
+                                    lineWidth: 1
+                                )
+                        )
+                )
+                .scaleEffect(isHovering ? 1.05 : 1.0)
+            }
+            .buttonStyle(.plain)
+            .onHover { hovering in
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    isHovering = hovering
+                }
+            }
+        }
+    }
+}
+
+struct GroupDetailPanel: View {
+    let groupInfo: GroupInfo
+    let userName: String
+    @Binding var copySuccess: Bool
+    @Binding var showShareMenu: Bool
+    let onClose: () -> Void
+    
+    @State private var urlFieldHover = false
+    
+    @AppStorage("currentGroupID") private var currentGroupID = ""
+    @AppStorage("userName") private var storedUserName = ""
+    
+    private var shareURL: String {
+        "monitoringsystem://share/\(groupInfo.recordID)"
+    }
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            HStack {
+                HStack(spacing: 12) {
+                    ZStack {
+                        Circle()
+                            .fill(
+                                LinearGradient(
+                                    colors: [Color.purple, Color.blue],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .frame(width: 48, height: 48)
+                        
+                        Image(systemName: "person.3.fill")
+                            .font(.system(size: 24))
+                            .foregroundColor(.white)
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(groupInfo.groupName)
+                            .font(.system(size: 18, weight: .semibold))
+                        
+                        HStack(spacing: 4) {
+                            Text("オーナー名：")
+                                .font(.system(size: 13))
+                                .foregroundColor(.secondary)
+                            Text(groupInfo.ownerName)
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
+                
+                Spacer()
+                
+                Button {
+                    onClose()
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 24))
+                        .foregroundStyle(.tertiary)
+                }
+                .buttonStyle(.plain)
+            }
+            
+            Divider()
+            
+            VStack(alignment: .leading, spacing: 16) {
+                InfoRow(
+                    icon: "person.fill",
+                    title: "あなたのユーザー名",
+                    value: userName,
+                    color: .blue
+                )
+            }
+            
+            VStack(alignment: .leading, spacing: 8) {
+                Label("招待用URL", systemImage: "link.circle.fill")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(.secondary)
+                
+                HStack(spacing: 8) {
+                    Text(shareURL)
+                        .font(.system(size: 12, design: .monospaced))
+                        .foregroundColor(.primary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 10)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(Color.gray.opacity(0.1))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .strokeBorder(
+                                            urlFieldHover ? Color.accentColor.opacity(0.3) : Color.gray.opacity(0.2),
+                                            lineWidth: 1
+                                        )
+                                )
+                        )
+                        .onHover { hovering in
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                urlFieldHover = hovering
+                            }
+                        }
+                    
+                    Button {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(shareURL, forType: .string)
+                        
+                        withAnimation(.spring(response: 0.3)) {
+                            copySuccess = true
+                        }
+                        
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                            withAnimation {
+                                copySuccess = false
+                            }
+                        }
+                    } label: {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(copySuccess ? Color.green : Color.accentColor)
+                                .frame(width: 80, height: 36)
+                            
+                            HStack(spacing: 4) {
+                                Image(systemName: copySuccess ? "checkmark" : "doc.on.doc")
+                                    .font(.system(size: 14))
+                                Text(copySuccess ? "Copied!" : "Copy")
+                                    .font(.system(size: 13, weight: .medium))
+                            }
+                            .foregroundColor(.white)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            
+            HStack(spacing: 12) {
+                ShareButton(
+                    url: shareURL,
+                    showShareMenu: $showShareMenu
+                )
+                
+                Spacer()
+                
+                Button {
+                    let alert = NSAlert()
+                    alert.messageText = "グループを退出しますか？"
+                    alert.informativeText = "グループから退出すると、このグループの情報にアクセスできなくなり、すべてのローカルデータが削除されます。この操作は取り消せません。"
+                    alert.addButton(withTitle: "退出する")
+                    alert.addButton(withTitle: "キャンセル")
+                    alert.alertStyle = .warning
+                    
+                    if let button = alert.buttons.first {
+                        button.hasDestructiveAction = true
+                    }
+                    
+                    if alert.runModal() == .alertFirstButtonReturn {
+                        Task {
+                            await SessionDataStore.shared.wipeAllPersistentData()
+                            
+                            CloudKitService.shared.clearTemporaryStorage()
+                            
+                            await MainActor.run {
+                                GroupInfoStore.shared.groupInfo = nil
+                                
+                                currentGroupID = ""
+                                storedUserName = ""
+                                
+                                UserDefaults.standard.removeObject(forKey: "currentGroupID")
+                                UserDefaults.standard.removeObject(forKey: "userName")
+                                UserDefaults.standard.synchronize()
+                                
+                                onClose()
+                            }
+                        }
+                    }
+                } label: {
+                    Label("グループを退出", systemImage: "rectangle.portrait.and.arrow.right")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(.red)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .background(
+                            Capsule()
+                                .strokeBorder(Color.red.opacity(0.3), lineWidth: 1)
+                        )
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(24)
+        .frame(width: 400)
+        .background(
+            RoundedRectangle(cornerRadius: 20)
+                .fill(.regularMaterial)
+                .shadow(color: .black.opacity(0.15), radius: 20, x: 0, y: 10)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 20)
+                        .strokeBorder(
+                            LinearGradient(
+                                colors: [
+                                    Color.white.opacity(0.3),
+                                    Color.white.opacity(0.1)
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ),
+                            lineWidth: 1
+                        )
+                )
+        )
+    }
+}
+
+struct InfoRow: View {
+    let icon: String
+    let title: String
+    let value: String
+    let color: Color
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(color.opacity(0.1))
+                    .frame(width: 36, height: 36)
+                
+                Image(systemName: icon)
+                    .font(.system(size: 16))
+                    .foregroundColor(color)
+            }
+            
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+                
+                Text(value)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(.primary)
+            }
+            
+            Spacer()
+        }
+    }
+}
+
+struct ShareButton: View {
+    let url: String
+    @Binding var showShareMenu: Bool
+    
+    var body: some View {
+        Button {
+            if let shareURL = URL(string: url),
+               let window = NSApp.keyWindow ?? NSApplication.shared.windows.first {
+                let picker = NSSharingServicePicker(items: [shareURL])
+                
+                if let button = window.contentView?.subviews.first(where: { $0 is NSButton }) {
+                    picker.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+                } else {
+                    picker.show(relativeTo: .zero, of: window.contentView!, preferredEdge: .maxY)
+                }
+            }
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "square.and.arrow.up")
+                    .font(.system(size: 14))
+                Text("共有")
+                    .font(.system(size: 13, weight: .medium))
+            }
+            .foregroundColor(.white)
+            .padding(.horizontal, 20)
+            .padding(.vertical, 8)
+            .background(
+                Capsule()
+                    .fill(
+                        LinearGradient(
+                            colors: [Color.accentColor, Color.accentColor.opacity(0.8)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+            )
+        }
+        .buttonStyle(.plain)
     }
 }
 

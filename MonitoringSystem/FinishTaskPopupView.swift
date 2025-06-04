@@ -291,20 +291,16 @@ struct FinishTaskPopupView: View {
     
     private func uploadToCloudKit(sessionRecord: SessionRecordModel) async {
         guard !currentGroupID.isEmpty && !userName.isEmpty else {
-            print("❌ Cannot upload: Missing groupID or userName")
             return
         }
         
         do {
-            print("📤 Uploading session to CloudKit...")
             try await CloudKitService.shared.uploadSession(
                 groupID: currentGroupID,
                 userName: userName,
                 sessionRecord: sessionRecord
             )
-            print("✅ Session uploaded successfully")
         } catch {
-            print("❌ Failed to upload session: \(error.localizedDescription)")
         }
     }
     

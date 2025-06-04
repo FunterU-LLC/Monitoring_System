@@ -19,7 +19,7 @@ struct UserNameInputSheet: View {
     @State private var isRegistering: Bool = false
     @State private var errorMessage: String? = nil
     
-    @Binding var groupID: String  // Bindingに変更
+    @Binding var groupID: String
     @Binding var groupName: String
     var onFinish: () -> Void
 
@@ -27,7 +27,6 @@ struct UserNameInputSheet: View {
         VStack(spacing: 20) {
             Text("ユーザーネームを入力してください").font(.headline)
             
-            // デバッグ情報を追加
             Text("GroupID: \(groupID)")
                 .font(.caption)
                 .foregroundColor(.gray)
@@ -74,7 +73,6 @@ struct UserNameInputSheet: View {
         print("   - groupID.isEmpty: \(groupID.isEmpty)")
         print("   - userName: '\(trimmedName)'")
         
-        // groupIDのバリデーション
         guard !groupID.isEmpty else {
             await MainActor.run {
                 errorMessage = "グループIDが無効です"
@@ -89,7 +87,6 @@ struct UserNameInputSheet: View {
         }
         
         do {
-            // CloudKitにメンバーを登録
             _ = try await CloudKitService.shared.createOrUpdateMember(
                 groupID: groupID,
                 userName: trimmedName
@@ -202,8 +199,8 @@ struct MonitoringSystemApp: App {
             }
             .sheet(isPresented: $showUserNameSheet) {
                 UserNameInputSheet(
-                    groupID: $pendingGroupID,  // Bindingとして渡す
-                    groupName: $pendingGroupName  // Bindingとして渡す
+                    groupID: $pendingGroupID,
+                    groupName: $pendingGroupName
                 ) {
                     if !pendingGroupID.isEmpty {
                         GroupInfoStore.shared.groupInfo = GroupInfo(
@@ -384,7 +381,6 @@ struct MonitoringSystemApp: App {
         
         if response == .alertFirstButtonReturn {
             print("✅ User confirmed join, setting pendingGroupID: \(recordID)")
-            // MainActorで確実に更新
             Task { @MainActor in
                 self.pendingGroupID = recordID
                 self.pendingGroupName = groupName

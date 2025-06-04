@@ -11,16 +11,10 @@ struct CameraTestTabView: View {
                 .padding()
             
             CameraPreviewView(cameraManager: cameraManager)
-                .frame(width: 400, height: 300)
+                .frame(width: 400, height: 400)
             
             HStack {
-                Button("セッション開始") {
-                    cameraManager.startSession()
-                }
-                .padding()
-                
-                Button("セッション停止") {
-                    cameraManager.stopSession()
+                Button("戻る") {
                     presentationMode.wrappedValue.dismiss()
                 }
                 .padding()

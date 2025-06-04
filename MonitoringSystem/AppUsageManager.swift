@@ -54,7 +54,6 @@ class AppUsageManager: NSObject {
         if let frontApp = NSWorkspace.shared.frontmostApplication {
             let bundleId = frontApp.bundleIdentifier ?? "UnknownBundle"
             let appName  = frontApp.localizedName ?? "UnknownApp"
-            print("最前面アプリ(開始時): \(appName), バンドルID: \(bundleId)")
 
             if !currentAppBundleId.isEmpty,
                let idx = logs.lastIndex(where: { $0.appName == currentAppName && $0.endTime == nil }) {
@@ -109,8 +108,6 @@ class AppUsageManager: NSObject {
         let appName  = runningApp.localizedName ?? "UnknownApp"
 
         guard bundleId != currentAppBundleId else { return }
-
-        print("最前面: \(appName), ID: \(bundleId)")
 
         if !currentAppName.isEmpty,
            let idx = logs.lastIndex(where: { $0.appName == currentAppName && $0.endTime == nil }) {

@@ -22,16 +22,13 @@ struct AcceptShareSheet: View {
                 Button("キャンセル") { onFinish(false) }
                 Spacer()
                 Button("参加") {
-                    print("✅ Join button tapped")
                     isJoining = true
                     
                     Task {
                         do {
                             try await CloudKitService.shared.acceptShare(from: metadata)
-                            print("✅ Successfully joined the share")
                             onFinish(true)
                         } catch {
-                            print("❌ Failed to join share: \(error.localizedDescription)")
                             isJoining = false
                             onFinish(false)
                         }
