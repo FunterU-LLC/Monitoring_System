@@ -93,12 +93,10 @@ struct WorkInProgressView: View {
                 .environment(faceRecognitionManager)
         }
         .onAppear {
-            startAttendance()
             cameraManager.startSession()
             updateSelectedTasks()
         }
         .onDisappear {
-            endAttendance()
             cameraManager.stopSession()
         }
         .overlay(
@@ -160,18 +158,6 @@ struct WorkInProgressView: View {
 
     private func updateSelectedTasks() {
         selectedTasks = remindersManager.tasks.filter { selectedTaskIds.contains($0.id) }
-    }
-    
-    private func startAttendance() {
-        let log = AttendanceLog(userId: "currentUser",
-                                startTime: Date(),
-                                endTime: nil)
-    }
-    
-    private func endAttendance() {
-        let log = AttendanceLog(userId: "currentUser",
-                                startTime: Date(),
-                                endTime: Date())
     }
 }
 

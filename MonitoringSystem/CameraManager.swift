@@ -6,6 +6,10 @@ import Vision
 @MainActor
 @Observable
 class CameraManager: NSObject {
+    
+    var cameraError: String? = nil
+    var showCameraError: Bool = false
+    
     var faceDetected: Bool = false
 
     let captureSession = AVCaptureSession()
@@ -18,6 +22,8 @@ class CameraManager: NSObject {
 
     private func configureSession() {
         guard let device = AVCaptureDevice.default(for: .video) else {
+            cameraError = "カメラデバイスが見つかりません"
+            showCameraError = true
             return
         }
         do {
@@ -30,6 +36,14 @@ class CameraManager: NSObject {
 
             captureSession.sessionPreset = .medium
         } catch {
+            cameraError = "カメラの設定に失敗しました: \(error.localizedDescription)"
+            showCameraError = true
+            
+            NotificationCenter.default.post(
+                name: Notification.Name("CameraConfigurationFailed"),
+                object: nil,
+                userInfo: ["error": error.localizedDescription]
+            )
         }
     }
 

@@ -34,16 +34,12 @@ final class SessionDataStore: ObservableObject {
         do {
             let config = ModelConfiguration(cloudKitDatabase: .none)
             container = try ModelContainer(for: schema, configurations: [config])
-            print("✅ CloudKitなしでModelContainerを初期化しました")
         } catch {
-            print("❌ 最初の初期化に失敗: \(error)")
             
             do {
                 let inMemoryConfig = ModelConfiguration(isStoredInMemoryOnly: true)
                 container = try ModelContainer(for: schema, configurations: [inMemoryConfig])
-                print("⚠️ インメモリストレージにフォールバックしました - データは永続化されません")
             } catch {
-                print("💥 致命的なエラー: \(error)")
                 fatalError("SwiftDataの初期化に失敗しました: \(error)")
             }
         }
@@ -223,7 +219,6 @@ final class SessionDataStore: ObservableObject {
         if FileManager.default.fileExists(atPath: legacyURL.path) {
             try? FileManager.default.removeItem(at: legacyURL)
         }
-        print("✅ 端末保存データをすべて削除しました")
     }
     
     @MainActor

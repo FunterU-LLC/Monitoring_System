@@ -33,7 +33,7 @@ struct OnboardingView: View {
     private func presentShareSheet(for url: URL) {
     #if os(macOS)
         guard let window = NSApp.keyWindow ?? NSApplication.shared.windows.first else {
-            print("❗️ window not found"); return
+            return
         }
         let picker = NSSharingServicePicker(items: [url])
         picker.show(relativeTo: .zero,

@@ -147,7 +147,7 @@ struct FinishTaskPopupView: View {
                     faceRecognitionManager.stopCamera()
                     appUsageManager.stopWork()
                     appUsageManager.calculateAggregatedUsage()
-                    appUsageManager.printRecognizedAppUsage()
+                    appUsageManager.recognizedAppUsageFunc()
                     
                     appUsageManager.saveCurrentUsageToDataStore()
 
@@ -169,7 +169,7 @@ struct FinishTaskPopupView: View {
                     appUsageManager.stopWork()
                     appUsageManager.calculateAggregatedUsage()
                     
-                    appUsageManager.printRecognizedAppUsage()
+                    appUsageManager.recognizedAppUsageFunc()
                     appUsageManager.saveCurrentUsageToDataStore()
                     
                     for task in tasksToFinish {
@@ -301,6 +301,14 @@ struct FinishTaskPopupView: View {
                 sessionRecord: sessionRecord
             )
         } catch {
+            await MainActor.run {
+                let alert = NSAlert()
+                alert.messageText = "アップロードエラー"
+                alert.informativeText = "データをクラウドにアップロードできませんでした。\n\(error.localizedDescription)\n\nデータはローカルに保存されており、ネットワーク接続が回復した際に自動的にアップロードされます。"
+                alert.alertStyle = .warning
+                alert.addButton(withTitle: "OK")
+                alert.runModal()
+            }
         }
     }
     

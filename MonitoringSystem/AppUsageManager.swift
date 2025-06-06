@@ -164,7 +164,7 @@ class AppUsageManager: NSObject {
         aggregatedResults.removeAll()
     }
     
-    func printRecognizedAppUsage() {
+    func recognizedAppUsageFunc() {
         stopRecognizedApp()
         recognizedAppUsage.removeAll()
     }

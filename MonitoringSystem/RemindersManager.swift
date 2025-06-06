@@ -12,6 +12,9 @@ class RemindersManager {
     var accessStatus: ReminderAccessStatus = .unknown
 
     let store = EKEventStore()
+    
+    var errorMessage: String? = nil
+    var showError: Bool = false
 
     init() {
         Task { await refreshAccessAndLists() }
@@ -140,7 +143,6 @@ class RemindersManager {
             }
             accessStatus = tasks.isEmpty ? .noTasks : .authorized
         } catch {
-            print("リマインダー取得失敗: \(error)")
             tasks = []
             accessStatus = .unknown
         }
@@ -153,6 +155,11 @@ class RemindersManager {
             completion(tasks)
         }
     }
+    
+    private func showErrorAlert(_ message: String) {
+        errorMessage = message
+        showError = true
+    }
 
     func addTask(title: String) {
         guard let calendar = store.calendars(for: .reminder).first(where: { $0.title == selectedList }) else { return }
@@ -162,7 +169,9 @@ class RemindersManager {
         do {
             try store.save(reminder, commit: true)
             Task { await fetchTasksAsync(for: selectedList) }
-        } catch { print("Failed to add reminder: \(error)") }
+        } catch {
+            showErrorAlert("タスクを追加できませんでした: \(error.localizedDescription)")
+        }
     }
 
     func updateTask(_ task: TaskItem, completed: Bool, notes: String?) {
@@ -174,7 +183,9 @@ class RemindersManager {
         do {
             try store.save(reminder, commit: true)
             Task { await fetchTasksAsync(for: selectedList) }
-        } catch { print("Failed to update reminder: \(error)") }
+        } catch {
+            showErrorAlert("タスクを更新できませんでした: \(error.localizedDescription)")
+        }
     }
 
     func removeTask(_ task: TaskItem) {
@@ -182,7 +193,9 @@ class RemindersManager {
         do {
             try store.remove(reminder, commit: true)
             Task { await fetchTasksAsync(for: selectedList) }
-        } catch { print("Failed to remove reminder: \(error)") }
+        } catch {
+            showErrorAlert("タスクを削除できませんでした: \(error.localizedDescription)")
+        }
     }
     
     func renameTask(_ task: TaskItem, to newName: String) {
@@ -192,7 +205,7 @@ class RemindersManager {
             try store.save(reminder, commit: true)
             Task { await fetchReminderLists(); await fetchTasksAsync(for: selectedList) }
         } catch {
-            print("Failed to rename reminder: \(error)")
+            showErrorAlert("タスク名を変更できませんでした: \(error.localizedDescription)")
         }
     }
 }

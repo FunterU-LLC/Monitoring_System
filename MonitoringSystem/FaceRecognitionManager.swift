@@ -8,6 +8,9 @@ import Vision
 @Observable
 class FaceRecognitionManager: NSObject {
     
+    var cameraError: String? = nil
+    var showCameraError: Bool = false
+    
     static let cameraAccessDeniedNotification = Notification.Name("CameraAccessDenied")
 
     var isFaceDetected: Bool = true
@@ -67,6 +70,8 @@ class FaceRecognitionManager: NSObject {
 
     private func configureSession() {
         guard let device = AVCaptureDevice.default(for: .video) else {
+            cameraError = "カメラデバイスが見つかりません"
+            showCameraError = true
             return
         }
         do {
@@ -81,6 +86,14 @@ class FaceRecognitionManager: NSObject {
 
             captureSession.sessionPreset = .medium
         } catch {
+            cameraError = "カメラの初期化に失敗しました: \(error.localizedDescription)"
+            showCameraError = true
+            
+            NotificationCenter.default.post(
+                name: Notification.Name("CameraInitializationFailed"),
+                object: nil,
+                userInfo: ["error": error.localizedDescription]
+            )
         }
     }
 

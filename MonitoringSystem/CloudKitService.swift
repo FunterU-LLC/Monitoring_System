@@ -5,6 +5,8 @@ import Network
 
 @MainActor
 final class CloudKitService {
+    
+    @Published var lastError: String? = nil
 
     static let shared = CloudKitService()
     static let workZoneID = CKRecordZone.ID(zoneName: "WorkGroupZone", ownerName: CKCurrentUserDefaultName)
@@ -210,14 +212,6 @@ final class CloudKitService {
                     }
 
                 case .failure(let error):
-                    if let ckErr = error as? CKError {
-                        if let partial =
-                            ckErr.userInfo[CKPartialErrorsByItemIDKey] as? [CKRecord.ID : Error] {
-
-                            for (id, subError) in partial {
-                            }
-                        }
-                    }
                     cont.resume(throwing: error)
                 }
             }
@@ -232,9 +226,9 @@ final class CloudKitService {
             
             operation.perShareResultBlock = { metadata, result in
                 switch result {
-                case .success(let share):
+                case .success:
                     break
-                case .failure(let error):
+                case .failure:
                     break
                 }
             }
@@ -346,6 +340,13 @@ final class CloudKitService {
                                                    withIntermediateDirectories: true)
             try data.write(to: tempDataURL)
         } catch {
+            lastError = "一時データの保存に失敗しました: \(error.localizedDescription)"
+            
+            NotificationCenter.default.post(
+                name: Notification.Name("CloudKitLocalSaveError"),
+                object: nil,
+                userInfo: ["error": error.localizedDescription]
+            )
         }
     }
     
@@ -368,6 +369,7 @@ final class CloudKitService {
         }
         
         var successfulUploads: [UUID] = []
+        var failedUploads: [(UUID, Error)] = []
         
         for upload in pendingUploads {
             do {
@@ -376,11 +378,31 @@ final class CloudKitService {
                                               session: upload.sessionData)
                 successfulUploads.append(upload.id)
             } catch {
+                failedUploads.append((upload.id, error))
             }
         }
         
         pendingUploads.removeAll { upload in
             successfulUploads.contains(upload.id)
+        }
+        
+        if !failedUploads.isEmpty {
+            let errorMessages = failedUploads.map {
+                "アップロードID \($0.0): \($0.1.localizedDescription)"
+            }.joined(separator: "\n")
+            
+            await MainActor.run {
+                lastError = "一部のデータのアップロードに失敗しました:\n\(errorMessages)"
+            }
+            
+            NotificationCenter.default.post(
+                name: Notification.Name("CloudKitUploadError"),
+                object: nil,
+                userInfo: [
+                    "error": errorMessages,
+                    "failedCount": failedUploads.count
+                ]
+            )
         }
         
         savePendingUploads()
@@ -451,8 +473,7 @@ final class CloudKitService {
         let batchSize = 400
         let db = CKContainer.default().privateCloudDatabase
         
-        for (index, chunk) in records.chunked(into: batchSize).enumerated() {
-            
+        for chunk in records.chunked(into: batchSize) {
             let operation = CKModifyRecordsOperation(recordsToSave: chunk, recordIDsToDelete: nil)
             operation.savePolicy = .ifServerRecordUnchanged
             operation.isAtomic = false
@@ -527,7 +548,6 @@ final class CloudKitService {
         var totalCompleted = 0
         
         for sessionRecord in sessionRecords {
-            guard let endTime = sessionRecord["endTime"] as? Date else { continue }
             
             let sessionRef = CKRecord.Reference(recordID: sessionRecord.recordID, action: .deleteSelf)
             let taskSummaries = try await fetchTaskSummariesForManagement(sessionRef: sessionRef)
@@ -885,27 +905,49 @@ final class CloudKitService {
             try await ensureZone()
         }
         
-        func deleteAllRecords() async throws {
-            
-            let recordTypes = [
-                RecordType.appUsage,
-                RecordType.taskUsageSummary,
-                RecordType.sessionRecord,
-                RecordType.member
-            ]
-            
-            for recordType in recordTypes {
-                do {
-                    try await deleteAllRecordsOfType(recordType)
-                } catch {
-                }
+    func deleteAllRecords() async throws {
+        let recordTypes = [
+            RecordType.appUsage,
+            RecordType.taskUsageSummary,
+            RecordType.sessionRecord,
+            RecordType.member
+        ]
+        
+        var errors: [String: Error] = [:]
+        
+        for recordType in recordTypes {
+            do {
+                try await deleteAllRecordsOfType(recordType)
+            } catch {
+                errors[recordType] = error
             }
         }
         
-        private func deleteAllRecordsOfType(_ recordType: String) async throws {
-            let db = CKContainer.default().privateCloudDatabase
+        if !errors.isEmpty {
+            let errorMessage = errors.map {
+                "\($0.key): \($0.value.localizedDescription)"
+            }.joined(separator: "\n")
             
-            let query = CKQuery(recordType: recordType, predicate: NSPredicate(value: true))
+            await MainActor.run {
+                lastError = "一部のレコードタイプの削除に失敗しました:\n\(errorMessage)"
+            }
+            
+            NotificationCenter.default.post(
+                name: Notification.Name("CloudKitDeleteError"),
+                object: nil,
+                userInfo: ["errors": errors]
+            )
+            
+            throw CKServiceError.encodingError
+        }
+    }
+        
+    private func deleteAllRecordsOfType(_ recordType: String) async throws {
+        let db = CKContainer.default().privateCloudDatabase
+        
+        let query = CKQuery(recordType: recordType, predicate: NSPredicate(value: true))
+        
+        do {
             let records = try await performQuery(query, in: db)
             
             guard !records.isEmpty else {
@@ -915,88 +957,77 @@ final class CloudKitService {
             let recordIDs = records.map { $0.recordID }
             
             try await deleteRecordsInBatches(recordIDs)
+        } catch {
+            throw CKServiceError.encodingError
         }
+    }
         
-        private func deleteRecordsInBatches(_ recordIDs: [CKRecord.ID]) async throws {
-            let batchSize = 400
-            let db = CKContainer.default().privateCloudDatabase
+    private func deleteRecordsInBatches(_ recordIDs: [CKRecord.ID]) async throws {
+        let batchSize = 400
+        let db = CKContainer.default().privateCloudDatabase
             
-            for chunk in recordIDs.chunked(into: batchSize) {
-                let operation = CKModifyRecordsOperation(recordsToSave: nil, recordIDsToDelete: chunk)
-                operation.isAtomic = false
-                
-                try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-                    operation.modifyRecordsResultBlock = { result in
-                        switch result {
-                        case .success:
-                            continuation.resume(returning: ())
-                        case .failure(let error):
-                            continuation.resume(throwing: error)
-                        }
+        for chunk in recordIDs.chunked(into: batchSize) {
+            let operation = CKModifyRecordsOperation(recordsToSave: nil, recordIDsToDelete: chunk)
+            operation.isAtomic = false
+            
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                operation.modifyRecordsResultBlock = { result in
+                    switch result {
+                    case .success:
+                        continuation.resume(returning: ())
+                    case .failure(let error):
+                        continuation.resume(throwing: error)
                     }
-                    db.add(operation)
                 }
+                db.add(operation)
             }
         }
+    }
         
-        func deleteUserData(groupID: String, userName: String) async throws {
+    func deleteUserData(groupID: String, userName: String) async throws {
             
-            guard let memberID = try await findMember(groupID: groupID, userName: userName) else {
-                return
-            }
-            
-            let memberRecordID = CKRecord.ID(recordName: memberID, zoneID: Self.workZoneID)
-            let memberRef = CKRecord.Reference(recordID: memberRecordID, action: .deleteSelf)
-            
-            let sessionQuery = CKQuery(recordType: RecordType.sessionRecord,
-                                     predicate: NSPredicate(format: "memberRef == %@", memberRef))
-            let db = CKContainer.default().privateCloudDatabase
-            let sessions = try await performQuery(sessionQuery, in: db)
-            
-            var recordsToDelete: [CKRecord.ID] = []
-            
-            for session in sessions {
-                let sessionRef = CKRecord.Reference(recordID: session.recordID, action: .deleteSelf)
-                
-                let taskQuery = CKQuery(recordType: RecordType.taskUsageSummary,
-                                      predicate: NSPredicate(format: "sessionRef == %@", sessionRef))
-                let tasks = try await performQuery(taskQuery, in: db)
-                
-                for task in tasks {
-                    let taskRef = CKRecord.Reference(recordID: task.recordID, action: .deleteSelf)
-                    
-                    let appQuery = CKQuery(recordType: RecordType.appUsage,
-                                         predicate: NSPredicate(format: "taskRef == %@", taskRef))
-                    let apps = try await performQuery(appQuery, in: db)
-                    
-                    recordsToDelete.append(contentsOf: apps.map { $0.recordID })
-                    
-                    recordsToDelete.append(task.recordID)
-                }
-                recordsToDelete.append(session.recordID)
-            }
-            
-            recordsToDelete.append(memberRecordID)
-            
-            if !recordsToDelete.isEmpty {
-                try await deleteRecordsInBatches(recordsToDelete)
-            } else {
-            }
+        guard let memberID = try await findMember(groupID: groupID, userName: userName) else {
+            return
         }
-    
-        func printCloudKitDataStats() async throws {
             
-            let recordTypes = [RecordType.group, RecordType.member, RecordType.sessionRecord,
-                              RecordType.taskUsageSummary, RecordType.appUsage]
+        let memberRecordID = CKRecord.ID(recordName: memberID, zoneID: Self.workZoneID)
+        let memberRef = CKRecord.Reference(recordID: memberRecordID, action: .deleteSelf)
             
-            for recordType in recordTypes {
-                do {
-                    let query = CKQuery(recordType: recordType, predicate: NSPredicate(value: true))
-                    let records = try await performQuery(query, in: CKContainer.default().privateCloudDatabase)
-                } catch {
-                }
+        let sessionQuery = CKQuery(recordType: RecordType.sessionRecord,
+                                    predicate: NSPredicate(format: "memberRef == %@", memberRef))
+        let db = CKContainer.default().privateCloudDatabase
+        let sessions = try await performQuery(sessionQuery, in: db)
+            
+        var recordsToDelete: [CKRecord.ID] = []
+            
+        for session in sessions {
+            let sessionRef = CKRecord.Reference(recordID: session.recordID, action: .deleteSelf)
+                
+            let taskQuery = CKQuery(recordType: RecordType.taskUsageSummary,
+                                    predicate: NSPredicate(format: "sessionRef == %@", sessionRef))
+            let tasks = try await performQuery(taskQuery, in: db)
+                
+            for task in tasks {
+                let taskRef = CKRecord.Reference(recordID: task.recordID, action: .deleteSelf)
+                    
+                let appQuery = CKQuery(recordType: RecordType.appUsage,
+                                        predicate: NSPredicate(format: "taskRef == %@", taskRef))
+                let apps = try await performQuery(appQuery, in: db)
+            
+                recordsToDelete.append(contentsOf: apps.map { $0.recordID })
+                
+                recordsToDelete.append(task.recordID)
             }
+            recordsToDelete.append(session.recordID)
         }
+            
+        recordsToDelete.append(memberRecordID)
+            
+        if !recordsToDelete.isEmpty {
+            try await deleteRecordsInBatches(recordsToDelete)
+        } else {
+        }
+    }
 
     func clearTemporaryStorage() {
         pendingUploads.removeAll()
@@ -1087,7 +1118,6 @@ final class CloudKitService {
             
         var recordsToUpdate: [CKRecord] = []
         for record in records {
-            let oldName = record["taskName"] as? String ?? "Unknown"
             record["taskName"] = newName as CKRecordValue
             recordsToUpdate.append(record)
         }

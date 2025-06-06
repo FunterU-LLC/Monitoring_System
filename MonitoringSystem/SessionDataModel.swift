@@ -1,6 +1,19 @@
 import Foundation
 import SwiftData
 
+enum DataStoreError {
+    static var lastError: String? = nil
+    
+    static func setError(_ message: String) {
+        lastError = message
+        NotificationCenter.default.post(
+            name: Notification.Name("DataStoreError"),
+            object: nil,
+            userInfo: ["message": message]
+        )
+    }
+}
+
 @Model
 final class AppUsageModel {
     var name: String = ""
@@ -27,11 +40,10 @@ func resetSwiftDataStore() {
                    fileURL.lastPathComponent.hasSuffix(".store-shm") ||
                    fileURL.lastPathComponent.hasSuffix(".store-wal") {
                     try fileManager.removeItem(at: fileURL)
-                    print("削除しました: \(fileURL.path)")
                 }
             }
         } catch {
-            print("ファイル削除中のエラー: \(error)")
+            DataStoreError.setError("データストアのリセットに失敗しました: \(error.localizedDescription)")
         }
     }
     
@@ -47,11 +59,10 @@ func resetSwiftDataStore() {
                        fileURL.lastPathComponent.hasSuffix(".store-shm") ||
                        fileURL.lastPathComponent.hasSuffix(".store-wal") {
                         try fileManager.removeItem(at: fileURL)
-                        print("コンテナから削除しました: \(fileURL.path)")
                     }
                 }
             } catch {
-                print("コンテナファイル削除中のエラー: \(error)")
+                DataStoreError.setError("コンテナデータのリセットに失敗しました: \(error.localizedDescription)")
             }
         }
     }

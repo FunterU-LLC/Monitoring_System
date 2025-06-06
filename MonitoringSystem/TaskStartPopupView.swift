@@ -518,11 +518,7 @@ private func startTaskAction() {
         if let remindersURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.reminders") {
             let config = NSWorkspace.OpenConfiguration()
             NSWorkspace.shared.openApplication(at: remindersURL, configuration: config) { runningApp, error in
-                if let error = error {
-                    print("Failed to open Reminders app: \(error)")
-                } else {
-                    print("Reminders app opened successfully.")
-                }
+                
             }
         } else {
             if let url = URL(string: "Reminders") {
@@ -579,4 +575,3 @@ private func startTaskAction() {
         }
     }
 }
-

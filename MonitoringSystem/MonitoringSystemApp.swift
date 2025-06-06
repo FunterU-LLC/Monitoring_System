@@ -58,20 +58,12 @@ struct UserNameInputSheet: View {
         .frame(width: 340)
         .onAppear {
             inputName = userName
-            print("🔍 UserNameInputSheet.onAppear - groupID: '\(groupID)'")
-            print("   - groupID.isEmpty: \(groupID.isEmpty)")
-            print("   - groupID.count: \(groupID.count)")
         }
     }
     
     private func registerMember() async {
         let trimmedName = inputName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedName.isEmpty else { return }
-        
-        print("📤 registerMember called with:")
-        print("   - groupID: '\(groupID)'")
-        print("   - groupID.isEmpty: \(groupID.isEmpty)")
-        print("   - userName: '\(trimmedName)'")
         
         guard !groupID.isEmpty else {
             await MainActor.run {
@@ -173,26 +165,20 @@ struct MonitoringSystemApp: App {
                 }
             }
             .onOpenURL { url in
-                print("🔗 onOpenURL called with: \(url.absoluteString)")
                 handleIncomingURL(url)
             }
             .sheet(item: $pendingShare, onDismiss: {
-                print("📱 Sheet dismissed, pendingShare was: \(pendingShare != nil)")
                 pendingShare = nil
             }) { md in
                 VStack {
                     AcceptShareSheet(metadata: md) { joined in
-                        print("🔄 AcceptShareSheet callback with joined: \(joined)")
                         if joined {
-                            print("✅ Successfully joined the group: \(md.share.recordID.recordName)")
                             currentGroupID = md.share.recordID.recordName
                         } else {
-                            print("❌ User canceled joining the group")
                         }
                         pendingShare = nil
                     }
                     .onAppear {
-                        print("📱 Showing AcceptShareSheet with metadata: \(md.share.recordID.recordName)")
                     }
                 }
                 .frame(width: 500, height: 300)
@@ -240,47 +226,28 @@ struct MonitoringSystemApp: App {
     @State private var pendingShare: CKShare.Metadata? = nil
     
     private func handleIncomingURL(_ url: URL) {
-        print("🔗 Handling incoming URL: \(url.absoluteString)")
-        print("URL scheme: \(url.scheme ?? "nil")")
-        print("URL host: \(url.host ?? "nil")")
-        print("URL path: \(url.path)")
         
         if url.scheme == "monitoringsystem" && url.host == "share" {
-            print("✅ Detected custom URL scheme for sharing")
             
             let recordID = url.lastPathComponent
             if !recordID.isEmpty {
-                print("📋 Extracted record ID: \(recordID)")
                 
                 fetchGroupRecordDirectly(recordID: recordID)
             } else {
-                print("❌ Path component is empty")
             }
             return
         }
         
         if url.absoluteString.contains("www.icloud.com") && url.absoluteString.contains("/share/") {
-            print("✅ Detected iCloud share URL")
             
             let op = CKFetchShareMetadataOperation(shareURLs: [url])
             op.perShareMetadataResultBlock = { _, result in
                 DispatchQueue.main.async {
                     switch result {
                     case .success(let md):
-                        print("✅ Successfully fetched share metadata: \(md.share.recordID.recordName)")
                         self.pendingShare = md
-                        print("🔔 pendingShare set to: \(md.share.recordID.recordName)")
-                    case .failure(let error):
-                        print("❌ Share metadata fetch error: \(error.localizedDescription)")
-                        if let ckError = error as? CKError {
-                            print("CloudKit error code: \(ckError.code.rawValue)")
-                            let userInfo = ckError.userInfo
-                            for (key, value) in userInfo {
-                                print("Error userInfo: \(key) = \(value)")
-                            }
-                        }
+                    case .failure:
                         if let shareURL = url.absoluteString.components(separatedBy: "/share/").last {
-                            print("⚠️ Error fallback: Setting group ID directly from URL: \(shareURL)")
                             self.currentGroupID = shareURL
                         }
                     }
@@ -292,22 +259,9 @@ struct MonitoringSystemApp: App {
                 DispatchQueue.main.async {
                     switch result {
                     case .success(let md):
-                        print("✅ Successfully fetched share metadata: \(md.share.recordID.recordName)")
                         self.pendingShare = md
-                        print("🔔 pendingShare set to: \(md.share.recordID.recordName)")
-                    case .failure(let error):
-                        print("❌ Share metadata fetch error: \(error.localizedDescription)")
-                        if let ckError = error as? CKError {
-                            print("CloudKit error code: \(ckError.code.rawValue)")
-                            
-                            let userInfo = ckError.userInfo
-                            for (key, value) in userInfo {
-                                print("Error userInfo: \(key) = \(value)")
-                            }
-                        }
-                        
+                    case .failure:
                         if let shareURL = url.absoluteString.components(separatedBy: "/share/").last {
-                            print("⚠️ Error fallback: Setting group ID directly from URL: \(shareURL)")
                             self.currentGroupID = shareURL
                         }
                     }
@@ -315,12 +269,10 @@ struct MonitoringSystemApp: App {
             }
             CKContainer.default().add(op)
         } else {
-            print("⚠️ URL doesn't match expected iCloud share URL pattern")
         }
     }
 
     private func fetchGroupRecordDirectly(recordID: String) {
-        print("🔍 Fetching group record directly with record ID: \(recordID)")
         
         let zoneID = CloudKitService.workZoneID
         let groupRecordID = CKRecord.ID(recordName: recordID, zoneID: zoneID)
@@ -329,32 +281,15 @@ struct MonitoringSystemApp: App {
         
         db.fetch(withRecordID: groupRecordID) { record, error in
             DispatchQueue.main.async {
-                if let error = error {
-                    print("❌ Error fetching group record: \(error.localizedDescription)")
-                    
-                    print("🔄 Using record ID as group ID fallback: \(recordID)")
+                if error != nil {
                     self.currentGroupID = recordID
-                    
-                    if let ckError = error as? CKError {
-                        print("CloudKit error code: \(ckError.code.rawValue)")
-                        
-                        let userInfo = ckError.userInfo
-                        for (key, value) in userInfo {
-                            print("Error userInfo: \(key) = \(value)")
-                        }
-                    }
                 } else if let record = record {
-                    print("✅ Group record found: \(record.recordID.recordName)")
                     
                     let groupName = record["groupName"] as? String ?? "Unknown Group"
                     let ownerName = record["ownerName"] as? String ?? "Unknown Owner"
-                    print("📊 Group: \(groupName), Owner: \(ownerName)")
-                    
-                    print("🔄 Using record ID as group ID: \(recordID)")
                     
                     self.showJoinConfirmation(groupName: groupName, ownerName: ownerName, recordID: recordID)
                 } else {
-                    print("⚠️ No record and no error")
                     self.currentGroupID = recordID
                 }
             }
@@ -362,7 +297,6 @@ struct MonitoringSystemApp: App {
     }
     
     private func showJoinConfirmation(groupName: String, ownerName: String, recordID: String) {
-        print("🔍 showJoinConfirmation called with recordID: \(recordID)")
         
         let alert = NSAlert()
         alert.messageText = "グループへの参加"
@@ -380,12 +314,10 @@ struct MonitoringSystemApp: App {
         let response = alert.runModal()
         
         if response == .alertFirstButtonReturn {
-            print("✅ User confirmed join, setting pendingGroupID: \(recordID)")
             Task { @MainActor in
                 self.pendingGroupID = recordID
                 self.pendingGroupName = groupName
                 self.pendingOwnerName = ownerName
-                print("📋 pendingGroupID set to: \(self.pendingGroupID)")
                 self.showUserNameSheet = true
             }
         }
@@ -393,33 +325,17 @@ struct MonitoringSystemApp: App {
 
 
     private func fetchShareMetadataDirectly(recordID: String, setDirectGroupIDOnFailure: Bool = false) {
-        print("🔍 Fetching share metadata directly with record ID: \(recordID)")
         
         if let shareURL = URL(string: "https://www.icloud.com/share/\(recordID)") {
-            print("📋 Converting to official iCloud share URL: \(shareURL)")
             
             let op = CKFetchShareMetadataOperation(shareURLs: [shareURL])
             op.perShareMetadataResultBlock = { _, result in
                 DispatchQueue.main.async {
                     switch result {
                     case .success(let md):
-                        print("✅ Successfully fetched share metadata: \(md.share.recordID.recordName)")
                         self.pendingShare = md
-                        print("🔔 pendingShare set to: \(md.share.recordID.recordName)")
-                    case .failure(let error):
-                        print("❌ Share metadata fetch error: \(error.localizedDescription)")
-                        
-                        if let ckError = error as? CKError {
-                            print("CloudKit error code: \(ckError.code.rawValue)")
-                            
-                            let userInfo = ckError.userInfo
-                            for (key, value) in userInfo {
-                                print("Error userInfo: \(key) = \(value)")
-                            }
-                        }
-                        
+                    case .failure:
                         if setDirectGroupIDOnFailure {
-                            print("⚠️ Fallback: Setting group ID directly: \(recordID)")
                             self.currentGroupID = recordID
                         }
                     }
@@ -430,16 +346,13 @@ struct MonitoringSystemApp: App {
             if setDirectGroupIDOnFailure {
                 DispatchQueue.main.async {
                     self.currentGroupID = recordID
-                    print("⚠️ Could not create iCloud URL, setting group ID directly: \(recordID)")
                 }
             } else {
-                print("❌ Could not create iCloud URL and setDirectGroupIDOnFailure is false")
             }
         }
     }
 
     private func fallbackDirectlyToGroupID(_ recordID: String) {
-        print("⚠️ Using direct fallback to set group ID: \(recordID)")
         DispatchQueue.main.async {
             self.currentGroupID = recordID
             self.pendingShare = nil

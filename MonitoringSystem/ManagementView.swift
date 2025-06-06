@@ -871,18 +871,6 @@ private struct TaskChartRow: View {
                                 toastMessage = "一時保存データをクリアしました"
                             }
                             .buttonStyle(.bordered)
-                            
-                            Button("データ統計表示") {
-                                Task {
-                                    do {
-                                        try await CloudKitService.shared.printCloudKitDataStats()
-                                        toastMessage = "データ統計をコンソールに出力しました"
-                                    } catch {
-                                        toastMessage = "統計取得失敗: \(error.localizedDescription)"
-                                    }
-                                }
-                            }
-                            .buttonStyle(.bordered)
                         }
                         
                         HStack(spacing: 12) {
