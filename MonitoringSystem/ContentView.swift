@@ -219,11 +219,11 @@ struct ContentView: View {
                         }
                     }
                     Spacer().frame(height: 12)
-                    Button("グループ情報をリセット (Debug)") {
-                        currentGroupID = ""
-                        GroupInfoStore.shared.groupInfo = nil
-                    }
-                    .buttonStyle(.bordered)
+//                    Button("グループ情報をリセット (Debug)") {
+//                        currentGroupID = ""
+//                        GroupInfoStore.shared.groupInfo = nil
+//                    }
+//                    .buttonStyle(.bordered)
                 }
             }
             .overlay(WindowMinSizeEnforcer(minWidth: 800, minHeight: 600)

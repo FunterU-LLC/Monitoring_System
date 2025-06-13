@@ -53,14 +53,14 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		4AB0FF842D47619400A3CD5C /* MonitoringSystem.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MonitoringSystem.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		4AB0FF842D47619400A3CD5C /* RemoVision.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = RemoVision.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		4AB0FF872D47619400A3CD5C /* MonitoringSystemApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonitoringSystemApp.swift; sourceTree = "<group>"; };
 		4AB0FF8B2D47619600A3CD5C /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		4AB0FF8E2D47619600A3CD5C /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		4AB0FF902D47619600A3CD5C /* MonitoringSystem.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MonitoringSystem.entitlements; sourceTree = "<group>"; };
-		4AB0FF952D47619600A3CD5C /* MonitoringSystemTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MonitoringSystemTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		4AB0FF952D47619600A3CD5C /* RemoVisionTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = RemoVisionTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		4AB0FF992D47619600A3CD5C /* MonitoringSystemTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonitoringSystemTests.swift; sourceTree = "<group>"; };
-		4AB0FF9F2D47619600A3CD5C /* MonitoringSystemUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MonitoringSystemUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		4AB0FF9F2D47619600A3CD5C /* RemoVisionUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = RemoVisionUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		4AB0FFA32D47619600A3CD5C /* MonitoringSystemUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonitoringSystemUITests.swift; sourceTree = "<group>"; };
 		4AB0FFA52D47619600A3CD5C /* MonitoringSystemUITestsLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonitoringSystemUITestsLaunchTests.swift; sourceTree = "<group>"; };
 		4AB0FFC42D48C9ED00A3CD5C /* ManagementView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManagementView.swift; sourceTree = "<group>"; };
@@ -124,9 +124,9 @@
 		4AB0FF852D47619400A3CD5C /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				4AB0FF842D47619400A3CD5C /* MonitoringSystem.app */,
-				4AB0FF952D47619600A3CD5C /* MonitoringSystemTests.xctest */,
-				4AB0FF9F2D47619600A3CD5C /* MonitoringSystemUITests.xctest */,
+				4AB0FF842D47619400A3CD5C /* RemoVision.app */,
+				4AB0FF952D47619600A3CD5C /* RemoVisionTests.xctest */,
+				4AB0FF9F2D47619600A3CD5C /* RemoVisionUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -191,9 +191,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		4AB0FF832D47619400A3CD5C /* MonitoringSystem */ = {
+		4AB0FF832D47619400A3CD5C /* RemoVision */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 4AB0FFA92D47619600A3CD5C /* Build configuration list for PBXNativeTarget "MonitoringSystem" */;
+			buildConfigurationList = 4AB0FFA92D47619600A3CD5C /* Build configuration list for PBXNativeTarget "RemoVision" */;
 			buildPhases = (
 				4AB0FF802D47619400A3CD5C /* Sources */,
 				4AB0FF812D47619400A3CD5C /* Frameworks */,
@@ -203,16 +203,16 @@
 			);
 			dependencies = (
 			);
-			name = MonitoringSystem;
+			name = RemoVision;
 			packageProductDependencies = (
 			);
 			productName = MonitoringSystem;
-			productReference = 4AB0FF842D47619400A3CD5C /* MonitoringSystem.app */;
+			productReference = 4AB0FF842D47619400A3CD5C /* RemoVision.app */;
 			productType = "com.apple.product-type.application";
 		};
-		4AB0FF942D47619600A3CD5C /* MonitoringSystemTests */ = {
+		4AB0FF942D47619600A3CD5C /* RemoVisionTests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 4AB0FFAC2D47619600A3CD5C /* Build configuration list for PBXNativeTarget "MonitoringSystemTests" */;
+			buildConfigurationList = 4AB0FFAC2D47619600A3CD5C /* Build configuration list for PBXNativeTarget "RemoVisionTests" */;
 			buildPhases = (
 				4AB0FF912D47619600A3CD5C /* Sources */,
 				4AB0FF922D47619600A3CD5C /* Frameworks */,
@@ -223,14 +223,14 @@
 			dependencies = (
 				4AB0FF972D47619600A3CD5C /* PBXTargetDependency */,
 			);
-			name = MonitoringSystemTests;
+			name = RemoVisionTests;
 			productName = MonitoringSystemTests;
-			productReference = 4AB0FF952D47619600A3CD5C /* MonitoringSystemTests.xctest */;
+			productReference = 4AB0FF952D47619600A3CD5C /* RemoVisionTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
-		4AB0FF9E2D47619600A3CD5C /* MonitoringSystemUITests */ = {
+		4AB0FF9E2D47619600A3CD5C /* RemoVisionUITests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 4AB0FFAF2D47619600A3CD5C /* Build configuration list for PBXNativeTarget "MonitoringSystemUITests" */;
+			buildConfigurationList = 4AB0FFAF2D47619600A3CD5C /* Build configuration list for PBXNativeTarget "RemoVisionUITests" */;
 			buildPhases = (
 				4AB0FF9B2D47619600A3CD5C /* Sources */,
 				4AB0FF9C2D47619600A3CD5C /* Frameworks */,
@@ -241,9 +241,9 @@
 			dependencies = (
 				4AB0FFA12D47619600A3CD5C /* PBXTargetDependency */,
 			);
-			name = MonitoringSystemUITests;
+			name = RemoVisionUITests;
 			productName = MonitoringSystemUITests;
-			productReference = 4AB0FF9F2D47619600A3CD5C /* MonitoringSystemUITests.xctest */;
+			productReference = 4AB0FF9F2D47619600A3CD5C /* RemoVisionUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
 /* End PBXNativeTarget section */
@@ -269,7 +269,7 @@
 					};
 				};
 			};
-			buildConfigurationList = 4AB0FF7F2D47619400A3CD5C /* Build configuration list for PBXProject "MonitoringSystem" */;
+			buildConfigurationList = 4AB0FF7F2D47619400A3CD5C /* Build configuration list for PBXProject "RemoVision" */;
 			compatibilityVersion = "Xcode 14.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
@@ -284,9 +284,9 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				4AB0FF832D47619400A3CD5C /* MonitoringSystem */,
-				4AB0FF942D47619600A3CD5C /* MonitoringSystemTests */,
-				4AB0FF9E2D47619600A3CD5C /* MonitoringSystemUITests */,
+				4AB0FF832D47619400A3CD5C /* RemoVision */,
+				4AB0FF942D47619600A3CD5C /* RemoVisionTests */,
+				4AB0FF9E2D47619600A3CD5C /* RemoVisionUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -368,12 +368,12 @@
 /* Begin PBXTargetDependency section */
 		4AB0FF972D47619600A3CD5C /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 4AB0FF832D47619400A3CD5C /* MonitoringSystem */;
+			target = 4AB0FF832D47619400A3CD5C /* RemoVision */;
 			targetProxy = 4AB0FF962D47619600A3CD5C /* PBXContainerItemProxy */;
 		};
 		4AB0FFA12D47619600A3CD5C /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 4AB0FF832D47619400A3CD5C /* MonitoringSystem */;
+			target = 4AB0FF832D47619400A3CD5C /* RemoVision */;
 			targetProxy = 4AB0FFA02D47619600A3CD5C /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
@@ -516,6 +516,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = MonitoringSystem/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = RemoVision;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.business";
 				INFOPLIST_KEY_NSCameraUsageDescription = "";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
@@ -549,6 +550,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = MonitoringSystem/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = RemoVision;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.business";
 				INFOPLIST_KEY_NSCameraUsageDescription = "";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
@@ -581,7 +583,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/MonitoringSystem.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/MonitoringSystem";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/RemoVision.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/RemoVision";
 			};
 			name = Debug;
 		};
@@ -600,7 +602,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/MonitoringSystem.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/MonitoringSystem";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/RemoVision.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/RemoVision";
 			};
 			name = Release;
 		};
@@ -641,7 +643,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		4AB0FF7F2D47619400A3CD5C /* Build configuration list for PBXProject "MonitoringSystem" */ = {
+		4AB0FF7F2D47619400A3CD5C /* Build configuration list for PBXProject "RemoVision" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				4AB0FFA72D47619600A3CD5C /* Debug */,
@@ -650,7 +652,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		4AB0FFA92D47619600A3CD5C /* Build configuration list for PBXNativeTarget "MonitoringSystem" */ = {
+		4AB0FFA92D47619600A3CD5C /* Build configuration list for PBXNativeTarget "RemoVision" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				4AB0FFAA2D47619600A3CD5C /* Debug */,
@@ -659,7 +661,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		4AB0FFAC2D47619600A3CD5C /* Build configuration list for PBXNativeTarget "MonitoringSystemTests" */ = {
+		4AB0FFAC2D47619600A3CD5C /* Build configuration list for PBXNativeTarget "RemoVisionTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				4AB0FFAD2D47619600A3CD5C /* Debug */,
@@ -668,7 +670,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		4AB0FFAF2D47619600A3CD5C /* Build configuration list for PBXNativeTarget "MonitoringSystemUITests" */ = {
+		4AB0FFAF2D47619600A3CD5C /* Build configuration list for PBXNativeTarget "RemoVisionUITests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				4AB0FFB02D47619600A3CD5C /* Debug */,
