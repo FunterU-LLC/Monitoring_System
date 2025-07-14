@@ -116,13 +116,6 @@ struct ManagementView: View {
                 }
 
                 kpiCards
-//                debugDeletionSection
-
-//                Button("データ初期化") {
-//                    Task {
-//                        await clearCloudKitData()
-//                    }
-//                }
                 .buttonStyle(.borderedProminent)
                 .tint(.red)
 
@@ -136,10 +129,6 @@ struct ManagementView: View {
                                         refreshSummaries: refreshSummaries,
                                         isUpdatingCloudKit: $isUpdatingCloudKit,
                                         cloudKitUpdateMessage: $cloudKitUpdateMessage)
-
-//                CompletionLineChartView(points: completionTrend,
-//                                        maxValue: completionTrend.max() ?? 1)
-//                    .frame(height: 160)
             }
             .padding(24)
             .task {
@@ -283,7 +272,6 @@ private extension ManagementView {
                     .font(.system(size: 14))
                     .foregroundColor(.secondary.opacity(0.7))
                 
-                // 検索バーを常にここに配置
                 HStack(spacing: 6) {
                     Image(systemName: "magnifyingglass")
                         .font(.system(size: 12))
@@ -638,58 +626,7 @@ private extension ManagementView {
             }
         }
     }
-    
-//    var debugDeletionSection: some View {
-//#if DEBUG
-//        VStack(alignment: .leading, spacing: 12) {
-//            Text("🚨 デバッグ用削除機能")
-//                .font(.headline)
-//                .foregroundColor(.red)
-//            
-//            Text("注意: これらの操作は元に戻せません")
-//                .font(.caption)
-//                .foregroundColor(.secondary)
-//            
-//            HStack(spacing: 12) {
-//                Button("一時保存データクリア") {
-//                    CloudKitService.shared.clearTemporaryStorage()
-//                    toastMessage = "一時保存データをクリアしました"
-//                }
-//                .buttonStyle(.bordered)
-//            }
-//            
-//            HStack(spacing: 12) {
-//                Button("選択ユーザーのデータ削除") {
-//                    let targetUser = selectedUser.isEmpty ? userName : selectedUser
-//                    deleteMessage = "ユーザー「\(targetUser)」のすべてのデータを削除しますか？"
-//                    deleteAction = {
-//                        await deleteUserData(targetUser)
-//                    }
-//                    showDeleteConfirmation = true
-//                }
-//                .buttonStyle(.borderedProminent)
-//                .tint(.orange)
-//                .disabled(selectedUser.isEmpty && userName.isEmpty)
-//                
-//                Button("全データ削除") {
-//                    deleteMessage = "CloudKit内のALLデータを削除しますか？この操作は元に戻せません。"
-//                    deleteAction = {
-//                        await deleteAllCloudKitData()
-//                    }
-//                    showDeleteConfirmation = true
-//                }
-//                .buttonStyle(.borderedProminent)
-//                .tint(.red)
-//            }
-//        }
-//        .padding()
-//        .background(Color.red.opacity(0.1))
-//        .cornerRadius(12)
-//#else
-//        EmptyView()
-//#endif
-//    }
-    
+
     private func deleteUserData(_ userName: String) async {
         do {
             try await CloudKitService.shared.deleteUserData(groupID: currentGroupID, userName: userName)
@@ -1188,40 +1125,6 @@ private struct TaskAppStackedChartView: View {
         }
     }
 }
-
-//private struct CompletionLineChartView: View {
-//    let points: [Int]
-//    let maxValue: Int
-//    var body: some View {
-//        VStack(alignment: .leading) {
-//            Text("完了タスク推移").font(.headline)
-//            GeometryReader { geo in
-//                let pts = makePoints(size: geo.size)
-//                Path { p in
-//                    guard let first = pts.first else { return }
-//                    p.move(to: first)
-//                    pts.dropFirst().forEach { p.addLine(to: $0) }
-//                }
-//                .stroke(Color.accentColor, lineWidth: 2)
-//                ForEach(pts.indices, id: \.self) { idx in
-//                    Circle()
-//                        .fill(Color.accentColor)
-//                        .frame(width: 6, height: 6)
-//                        .position(pts[idx])
-//                }
-//            }
-//        }
-//    }
-//    private func makePoints(size: CGSize) -> [CGPoint] {
-//        guard maxValue > 0 else { return [] }
-//        let cnt = max(points.count - 1, 1)
-//        return points.enumerated().map { idx, v in
-//            let x = CGFloat(idx) / CGFloat(cnt) * size.width
-//            let y = size.height - CGFloat(v) / CGFloat(maxValue) * size.height
-//            return CGPoint(x: x, y: y)
-//        }
-//    }
-//}
 
 private struct OverallAppUsageBarView: View {
     let usages: [(name: String, ratio: Double)]

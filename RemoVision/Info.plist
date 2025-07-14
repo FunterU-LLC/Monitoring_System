@@ -2,6 +2,10 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+    <key>NSCameraUsageDescription</key>
+    <string>RemoVisionは、カメラで顔を認識している間を作業時間として記録します。映像や画像は一切保存されません。録画機能はありません</string>
+    <key>NSRemindersUsageDescription</key>
+    <string>RemoVisionは、作業タスクを管理・記録するために、リマインダーを使用します。実施したタスク名は所属グループ内で共有されます。</string>
     <key>CFBundleName</key>
     <string>RemoVision</string>
     <key>CFBundleDisplayName</key>
@@ -41,10 +45,5 @@
             </array>
         </dict>
     </array>
-    
-    <key>NSCameraUsageDescription</key>
-    <string>RemoVisionは、リモートワーク中の在席時間を記録するため、カメラを使用して顔認識を行います。顔認識はデバイス上でリアルタイムに処理され、映像データは一切保存されません。映像データには、あなたを含め誰もアクセスすることはできません。</string>
-    <key>NSRemindersUsageDescription</key>
-    <string>RemoVisionはリマインダーに登録された作業項目を読み取り、作業タスクとして表示します。選択された作業項目は在席時間と紐付けて記録され、作業実績の管理に使用されます。リマインダーのデータはデバイス内でのみ処理され、外部に送信されることはありません。</string>
 </dict>
 </plist>

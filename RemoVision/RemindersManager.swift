@@ -17,7 +17,7 @@ class RemindersManager {
     var showError: Bool = false
 
     init() {
-        Task { await refreshAccessAndLists() }
+        
     }
 
     enum ReminderAccessStatus {
@@ -79,6 +79,44 @@ class RemindersManager {
             if granted { await fetchReminderLists() }
         }
     #endif
+    }
+    
+    func requestAccess() async {
+#if DEBUG
+        print("🔍 リマインダー権限リクエストが呼ばれました")
+        print("呼び出し元:")
+        Thread.callStackSymbols.prefix(10).forEach { print($0) }
+#endif
+        let status = EKEventStore.authorizationStatus(for: .reminder)
+        
+        switch status {
+        case .notDetermined:
+            let granted = await requestFullAccessAsync()
+            accessStatus = granted ? .authorized : .denied
+            if granted {
+                await fetchReminderLists()
+            } else {
+                await MainActor.run {
+                    NotificationCenter.default.post(
+                        name: Notification.Name("ReminderAccessDenied"),
+                        object: nil
+                    )
+                }
+            }
+        case .authorized:
+            accessStatus = .authorized
+            await fetchReminderLists()
+        case .denied, .restricted:
+            accessStatus = .denied
+            await MainActor.run {
+                NotificationCenter.default.post(
+                    name: Notification.Name("ReminderAccessDenied"),
+                    object: nil
+                )
+            }
+        default:
+            break
+        }
     }
 
     private func requestFullAccessAsync() async -> Bool {

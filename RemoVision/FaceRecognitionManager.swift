@@ -132,7 +132,8 @@ class FaceRecognitionManager: NSObject {
                                             trigger: nil)
         try? await center.add(request)
     }
-    private func ensureCameraPermission() async -> Bool {
+    
+    public func ensureCameraPermission() async -> Bool {
         switch AVCaptureDevice.authorizationStatus(for: .video) {
         case .authorized:
             return true

@@ -126,7 +126,7 @@ class GroupInfoStore: ObservableObject {
 }
 
 @main
-struct MonitoringSystemApp: App {
+struct RemoVisionApp: App {
     private var sessionStore = SessionDataStore.shared
     private var faceRecognitionManager = FaceRecognitionManager()
     private var remindersManager = RemindersManager()
@@ -144,26 +144,30 @@ struct MonitoringSystemApp: App {
     @State private var pendingGroupID: String = ""
     @State private var pendingGroupName: String = ""
     @State private var pendingOwnerName: String = ""
+    @State private var permissionCoordinator = PermissionCoordinator()
 
     var body: some Scene {
         WindowGroup {
             Group {
-                if currentGroupID.isEmpty {
+                if !permissionCoordinator.allGranted {
+                    PermissionGateView()
+                        .environment(permissionCoordinator)
+                        .task { await permissionCoordinator.requestInitialPermissions() }
+
+                } else if currentGroupID.isEmpty {
                     OnboardingView()
-                        .environment(faceRecognitionManager)
-                        .environment(remindersManager)
-                        .environment(appUsageManager)
-                        .environment(cameraManager)
-                        .environment(popupCoordinator)
+                        .environment(permissionCoordinator)
+
                 } else {
                     ContentView(bindableCoordinator: popupCoordinator)
-                        .environment(faceRecognitionManager)
-                        .environment(remindersManager)
-                        .environment(appUsageManager)
-                        .environment(cameraManager)
-                        .environment(popupCoordinator)
+                        .environment(permissionCoordinator)
                 }
             }
+            .environment(popupCoordinator)
+            .environment(faceRecognitionManager)
+            .environment(remindersManager)
+            .environment(appUsageManager)
+            .environment(cameraManager)
             .onOpenURL { url in
                 handleIncomingURL(url)
             }

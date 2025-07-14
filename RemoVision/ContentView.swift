@@ -153,13 +153,18 @@ struct ContentView: View {
     @Environment(RemindersManager.self) var remindersManager
     @Environment(AppUsageManager.self) var appUsageManager
     @Environment(FaceRecognitionManager.self) var faceRecognitionManager
+    @Environment(PermissionCoordinator.self) var permissionCoordinator
     @Bindable var bindableCoordinator: PopupCoordinator
     @State private var showManagement = false
     @State private var showCameraTestTab = false
+    @State private var showPermissionGate = false
     @State private var parentWindowSize: CGSize = .zero
     
     @AppStorage("currentGroupID") private var currentGroupID: String = ""
     @AppStorage("userName") private var userName: String = ""
+    
+    @State private var showOnboarding = false
+    @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
         
     init(bindableCoordinator: PopupCoordinator) {
         self.bindableCoordinator = bindableCoordinator
@@ -219,11 +224,6 @@ struct ContentView: View {
                         }
                     }
                     Spacer().frame(height: 12)
-//                    Button("グループ情報をリセット (Debug)") {
-//                        currentGroupID = ""
-//                        GroupInfoStore.shared.groupInfo = nil
-//                    }
-//                    .buttonStyle(.bordered)
                 }
             }
             .overlay(WindowMinSizeEnforcer(minWidth: 800, minHeight: 600)
@@ -237,6 +237,9 @@ struct ContentView: View {
             )
             .onAppear {
                 parentWindowSize = geo.size
+            }
+            .task {
+                showOnboarding = true
             }
             .onChange(of: geo.size) { _, newSize in
                 parentWindowSize = newSize
@@ -264,6 +267,10 @@ struct ContentView: View {
         }
         .sheet(isPresented: $showCameraTestTab) {
             CameraTestTabView()
+        }
+        .sheet(isPresented: $showPermissionGate) {
+            PermissionGateView()
+                .environment(permissionCoordinator)
         }
         .overlay(
             Group {
@@ -815,3 +822,4 @@ struct WindowMinSizeEnforcer: NSViewRepresentable {
         }
     }
 }
+

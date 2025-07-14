@@ -1,0 +1,11 @@
+/* 
+  InfoPlist.strings
+  RemoVision
+
+  Created by 新井山詠斗 on 2025/06/16.
+  
+*/
+
+"NSCameraUsageDescription" = "RemoVisionは、カメラで顔を認識している間を作業時間として記録します。映像や画像は一切保存されません。録画機能はありません";
+
+"NSRemindersUsageDescription" = "RemoVisionは、作業タスクを管理・記録するために、リマインダーを使用します。実施したタスク名は所属グループ内で共有されます。";
