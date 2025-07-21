@@ -155,12 +155,6 @@ final class SessionDataStore: ObservableObject {
         }
     }
 
-    func resetAllSessions() async {
-        for s in allSessions { context.delete(s) }
-        try? context.save()
-        await loadAll()
-    }
-
     private func loadAll() async {
         let list = try! context.fetch(
             FetchDescriptor<SessionRecordModel>(sortBy: [SortDescriptor(\.endTime, order: .reverse)])
@@ -218,18 +212,6 @@ final class SessionDataStore: ObservableObject {
         
         if FileManager.default.fileExists(atPath: legacyURL.path) {
             try? FileManager.default.removeItem(at: legacyURL)
-        }
-    }
-    
-    @MainActor
-    func removeAllRecords(for reminderId: String) {
-        guard !reminderId.isEmpty else { return }
-
-        let predicate = #Predicate<TaskUsageSummaryModel> { $0.reminderId == reminderId }
-        if let matched = try? context.fetch(FetchDescriptor(predicate: predicate)) {
-            matched.forEach { context.delete($0) }
-            try? context.save()
-            Task { await loadAll() }
         }
     }
 }

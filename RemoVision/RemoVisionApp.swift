@@ -149,7 +149,6 @@ class GroupInfoStore: ObservableObject {
 
 @main
 struct RemoVisionApp: App {
-    private var sessionStore = SessionDataStore.shared
     private var faceRecognitionManager = FaceRecognitionManager()
     private var remindersManager = RemindersManager()
     private var appUsageManager = AppUsageManager()
@@ -312,8 +311,6 @@ struct RemoVisionApp: App {
             }
         }
     }
-    
-    @State private var pendingShare: CKShare.Metadata? = nil
     
     private func handleIncomingURL(_ url: URL) {
         #if DEBUG
@@ -508,43 +505,6 @@ struct RemoVisionApp: App {
             }
         }
     }
-
-
-    private func fetchShareMetadataDirectly(recordID: String, setDirectGroupIDOnFailure: Bool = false) {
-        
-        if let shareURL = URL(string: "https://www.icloud.com/share/\(recordID)") {
-            
-            let op = CKFetchShareMetadataOperation(shareURLs: [shareURL])
-            op.perShareMetadataResultBlock = { _, result in
-                DispatchQueue.main.async {
-                    switch result {
-                    case .success(let md):
-                        self.pendingShare = md
-                    case .failure:
-                        if setDirectGroupIDOnFailure {
-                            self.currentGroupID = recordID
-                        }
-                    }
-                }
-            }
-            CKContainer.default().add(op)
-        } else {
-            if setDirectGroupIDOnFailure {
-                DispatchQueue.main.async {
-                    self.currentGroupID = recordID
-                }
-            } else {
-            }
-        }
-    }
-
-    private func fallbackDirectlyToGroupID(_ recordID: String) {
-        DispatchQueue.main.async {
-            self.currentGroupID = recordID
-            self.pendingShare = nil
-        }
-    }
-    
     
     @MainActor
     private func checkAccessibilityLoop() async {

@@ -1,19 +1,6 @@
 import Foundation
 import SwiftData
 
-enum DataStoreError {
-    static var lastError: String? = nil
-    
-    static func setError(_ message: String) {
-        lastError = message
-        NotificationCenter.default.post(
-            name: Notification.Name("DataStoreError"),
-            object: nil,
-            userInfo: ["message": message]
-        )
-    }
-}
-
 @Model
 final class AppUsageModel {
     var name: String = ""
@@ -24,47 +11,6 @@ final class AppUsageModel {
     init(name: String, seconds: Double) {
         self.name = name
         self.seconds = seconds
-    }
-}
-
-func resetSwiftDataStore() {
-    let fileManager = FileManager.default
-    let appSupportDir = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-    
-    let monitoringSystemDir = appSupportDir.appendingPathComponent("MonitoringSystem")
-    if fileManager.fileExists(atPath: monitoringSystemDir.path) {
-        do {
-            let contents = try fileManager.contentsOfDirectory(at: monitoringSystemDir, includingPropertiesForKeys: nil)
-            for fileURL in contents {
-                if fileURL.lastPathComponent.hasSuffix(".store") ||
-                   fileURL.lastPathComponent.hasSuffix(".store-shm") ||
-                   fileURL.lastPathComponent.hasSuffix(".store-wal") {
-                    try fileManager.removeItem(at: fileURL)
-                }
-            }
-        } catch {
-            DataStoreError.setError("データストアのリセットに失敗しました: \(error.localizedDescription)")
-        }
-    }
-    
-    if let containerURL = fileManager.containerURL(forSecurityApplicationGroupIdentifier: "FunterU.MonitoringSystem") {
-        let containerAppSupportDir = containerURL.appendingPathComponent("Library/Application Support")
-        let containerMonitoringDir = containerAppSupportDir.appendingPathComponent("MonitoringSystem")
-        
-        if fileManager.fileExists(atPath: containerMonitoringDir.path) {
-            do {
-                let contents = try fileManager.contentsOfDirectory(at: containerMonitoringDir, includingPropertiesForKeys: nil)
-                for fileURL in contents {
-                    if fileURL.lastPathComponent.hasSuffix(".store") ||
-                       fileURL.lastPathComponent.hasSuffix(".store-shm") ||
-                       fileURL.lastPathComponent.hasSuffix(".store-wal") {
-                        try fileManager.removeItem(at: fileURL)
-                    }
-                }
-            } catch {
-                DataStoreError.setError("コンテナデータのリセットに失敗しました: \(error.localizedDescription)")
-            }
-        }
     }
 }
 

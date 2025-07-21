@@ -34,52 +34,6 @@ class RemindersManager {
         }
     }
 
-    private func refreshAccessAndLists() async {
-    #if compiler(>=5.9)
-        let status = EKEventStore.authorizationStatus(for: .reminder)
-
-        switch status {
-        case .authorized, .fullAccess, .writeOnly:
-            accessStatus = .authorized
-            await fetchReminderLists()
-
-        case .denied, .restricted:
-            accessStatus = .denied
-
-        case .notDetermined:
-            let granted = await requestFullAccessAsync()
-            accessStatus = granted ? .authorized : .denied
-            if granted { await fetchReminderLists() }
-
-        @unknown default:
-            let granted = await requestFullAccessAsync()
-            accessStatus = granted ? .authorized : .denied
-            if granted { await fetchReminderLists() }
-        }
-
-    #else
-        let status = EKEventStore.authorizationStatus(for: .reminder)
-
-        switch status {
-        case .authorized:
-            accessStatus = .authorized
-            await fetchReminderLists()
-
-        case .denied, .restricted:
-            accessStatus = .denied
-
-        case .notDetermined:
-            let granted = await requestFullAccessAsync()
-            accessStatus = granted ? .authorized : .denied
-            if granted { await fetchReminderLists() }
-
-        @unknown default:
-            let granted = await requestFullAccessAsync()
-            accessStatus = granted ? .authorized : .denied
-            if granted { await fetchReminderLists() }
-        }
-    #endif
-    }
     
     func requestAccess() async {
 #if DEBUG
@@ -247,15 +201,4 @@ class RemindersManager {
         }
     }
 }
-
-
-#if DEBUG
-struct RemindersManager_Previews: PreviewProvider {
-    static var previews: some View {
-        Text("RemindersManagerのプレビュー")
-            .frame(width: 300, height: 100)
-            .environment(RemindersManager())
-    }
-}
-#endif
 

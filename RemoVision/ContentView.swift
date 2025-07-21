@@ -51,28 +51,6 @@ struct KeyboardMonitorView: NSViewRepresentable {
 
 }
 
-struct WindowResizingHelper: NSViewRepresentable {
-    let width: CGFloat
-    let height: CGFloat
-    
-    func makeNSView(context: Context) -> NSView {
-        let nsView = NSView()
-        
-        DispatchQueue.main.async {
-            if let window = nsView.window {
-                let newSize = NSSize(width: width, height: height)
-                window.setContentSize(newSize)
-            }
-        }
-        
-        return nsView
-    }
-    
-    func updateNSView(_ nsView: NSView, context: Context) {
-        
-    }
-}
-
 struct FocusableButtonStyle: ButtonStyle {
     let isFocused: Bool
     let isEnabled: Bool
@@ -223,40 +201,6 @@ struct ContentView: View {
                                 focusedButton = .cameraTest
                             }
                         }
-#if DEBUG
-// デバッグボタンの近くに追加
-Button("Test CKShare") {
-    // 現在のグループを退出
-    Task {
-        await SessionDataStore.shared.wipeAllPersistentData()
-        CloudKitService.shared.clearTemporaryStorage()
-        
-        await MainActor.run {
-            GroupInfoStore.shared.groupInfo = nil
-            currentGroupID = ""
-            userName = ""
-            UserDefaults.standard.removeObject(forKey: "currentGroupID")
-            UserDefaults.standard.removeObject(forKey: "userName")
-            UserDefaults.standard.synchronize()
-            
-            // 少し待ってからURLを処理
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                // CKShare URLを直接処理
-                let testURL = URL(string: "https://www.icloud.com/share/0fb4q5vb-Ne2-_Ij4UOLdgDYA#difficult")!
-                
-                // RemoVisionAppのhandleIncomingURLを呼ぶ
-                NotificationCenter.default.post(
-                    name: Notification.Name("TestCKShareURL"),
-                    object: nil,
-                    userInfo: ["url": testURL]
-                )
-            }
-        }
-    }
-}
-.buttonStyle(.borderedProminent)
-.tint(.green)
-#endif
                     }
                     Spacer().frame(height: 12)
                 }

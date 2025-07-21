@@ -151,32 +151,6 @@ final class CloudKitService {
         let groupRef: CKRecord.Reference
     }
 
-    struct CloudSessionRecord {
-        let recordID: CKRecord.ID
-        let memberRef: CKRecord.Reference
-        let endTime: Date
-        let completedCount: Int
-    }
-    
-    struct CloudTaskUsageSummary {
-        let recordID: CKRecord.ID
-        let sessionRef: CKRecord.Reference
-        let reminderId: String
-        let taskName: String
-        let isCompleted: Bool
-        let startTime: Date
-        let endTime: Date
-        let totalSeconds: Double
-        let comment: String?
-    }
-    
-    struct CloudAppUsage {
-        let recordID: CKRecord.ID
-        let taskRef: CKRecord.Reference
-        let name: String
-        let seconds: Double
-    }
-
     func createGroup(ownerName: String,
                      groupName: String) async throws -> (url: URL, groupID: String) {
 
@@ -929,62 +903,26 @@ final class CloudKitService {
             db.add(operation)
         }
     }
-        func deleteAllCloudKitData() async throws {
-            
-            let db = CKContainer.default().privateCloudDatabase
-            
-            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-                let operation = CKModifyRecordZonesOperation(recordZonesToSave: nil,
-                                                            recordZoneIDsToDelete: [Self.workZoneID])
-                operation.modifyRecordZonesResultBlock = { result in
-                    switch result {
-                    case .success:
-                        continuation.resume(returning: ())
-                    case .failure(let error):
-                        continuation.resume(throwing: error)
-                    }
+    
+    func deleteAllCloudKitData() async throws {
+        
+        let db = CKContainer.default().privateCloudDatabase
+        
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            let operation = CKModifyRecordZonesOperation(recordZonesToSave: nil,
+                                                        recordZoneIDsToDelete: [Self.workZoneID])
+            operation.modifyRecordZonesResultBlock = { result in
+                switch result {
+                case .success:
+                    continuation.resume(returning: ())
+                case .failure(let error):
+                    continuation.resume(throwing: error)
                 }
-                db.add(operation)
             }
-            
-            try await ensureZone()
+            db.add(operation)
         }
         
-    func deleteAllRecords() async throws {
-        let recordTypes = [
-            RecordType.appUsage,
-            RecordType.taskUsageSummary,
-            RecordType.sessionRecord,
-            RecordType.member
-        ]
-        
-        var errors: [String: Error] = [:]
-        
-        for recordType in recordTypes {
-            do {
-                try await deleteAllRecordsOfType(recordType)
-            } catch {
-                errors[recordType] = error
-            }
-        }
-        
-        if !errors.isEmpty {
-            let errorMessage = errors.map {
-                "\($0.key): \($0.value.localizedDescription)"
-            }.joined(separator: "\n")
-            
-            await MainActor.run {
-                lastError = "一部のレコードタイプの削除に失敗しました:\n\(errorMessage)"
-            }
-            
-            NotificationCenter.default.post(
-                name: Notification.Name("CloudKitDeleteError"),
-                object: nil,
-                userInfo: ["errors": errors]
-            )
-            
-            throw CKServiceError.encodingError
-        }
+        try await ensureZone()
     }
         
     private func deleteAllRecordsOfType(_ recordType: String) async throws {
@@ -1193,30 +1131,6 @@ final class CloudKitService {
             try await deleteRecordsInBatches(recordIDs)
         } else {
         }
-    }
-    
-    struct WorkRecord {
-        let recordID: CKRecord.ID
-        let memberRef: CKRecord.Reference
-        let start: Date
-        let end: Date
-        let jsonBlob: Data
-    }
-    
-    struct WorkSessionRecord {
-        let recordID: CKRecord.ID
-        let startTime: Date
-        let endTime: Date
-        let completedTaskCount: Int
-        let memberRef: CKRecord.Reference
-    }
-
-    func upload(workRecord: WorkRecord) async throws {
-        throw CKServiceError.notImplemented
-    }
-    
-    func fetchWorkRecords() async throws -> [WorkRecord] {
-        throw CKServiceError.notImplemented
     }
 }
 

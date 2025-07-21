@@ -31,10 +31,6 @@ struct ManagementView: View {
     @State private var toastMessage: String? = nil
     @State private var toastWork: DispatchWorkItem? = nil
     @State private var errorMessage: String? = nil
-    
-    @State private var showDeleteConfirmation = false
-    @State private var deleteAction: (() async -> Void)? = nil
-    @State private var deleteMessage = ""
 
     @AppStorage("currentGroupID") private var currentGroupID: String = ""
     @AppStorage("userName") private var userName: String = ""
@@ -55,30 +51,6 @@ struct ManagementView: View {
     }
     
     private var completedCount: Int { summaries.1 }
-
-    private var overallAppUsageRatios: [(name: String, ratio: Double)] {
-        var dict: [String: Double] = [:]
-        
-        for t in tasks {
-            for a in t.appBreakdown {
-                dict[a.name, default: 0] += a.seconds
-            }
-        }
-        
-        for rec in appUsageManager.aggregatedResults {
-            dict[rec.appName, default: 0] += rec.totalTime
-        }
-        
-        let total = dict.values.reduce(0, +)
-        guard total > 0 else { return [] }
-        
-        return dict.map { ($0.key, $0.value / total) }
-                   .sorted { $0.ratio > $1.ratio }
-    }
-
-    private var completionTrend: [Int] {
-        return Array(repeating: completedCount / 7, count: 7)
-    }
 
     var body: some View {
         ScrollView {
@@ -145,10 +117,6 @@ struct ManagementView: View {
             .onChange(of: selectedUser) {
                 Task { await refreshSummaries() }
             }
-            .onChange(of: summaries.0.count) { oldValue, newValue in
-            }
-            .onChange(of: summaries.1) { oldValue, newValue in
-            }
         }
         .background(
             Color.clear
@@ -212,53 +180,9 @@ struct ManagementView: View {
             toastWork = work
             DispatchQueue.main.asyncAfter(deadline: .now() + 2, execute: work)
         }
-        .alert("危険な操作", isPresented: $showDeleteConfirmation) {
-                    Button("キャンセル", role: .cancel) {}
-                    Button("削除実行", role: .destructive) {
-                        if let action = deleteAction {
-                            Task { await action() }
-                        }
-                    }
-                } message: {
-                    Text(deleteMessage)
-                }
-    }
-    
-    private func clearCloudKitData() async {
-        CloudKitService.shared.clearTemporaryStorage()
-        toastMessage = "一時保存データをクリアしました"
-        await refreshSummaries()
     }
 }
 
-private struct TaskChartRow: View {
-    let task: TaskUsageSummary
-    let palette: [Color]
-    
-    private var data: [TaskAppBarDatum] {
-        task.appBreakdown.map { app in
-            TaskAppBarDatum(taskName: task.taskName,
-                            appName:  app.name,
-                            seconds:  app.seconds)
-        }
-    }
-    
-    var body: some View {
-        Chart(data) { item in
-            BarMark(
-                x: .value("時間(s)", item.seconds),
-                y: .value("タスク",   item.taskName)
-            )
-            .position(by: .value("App", item.appName))
-            .foregroundStyle(by: .value("App", item.appName))
-        }
-        .chartForegroundStyleScale(domain: data.map(\.appName),
-                                   range: palette)
-        .chartLegend(.hidden)
-        .frame(height: 22)
-        .padding(.vertical, 2)
-    }
-}
 
 private extension ManagementView {
     private var userSelectionSection: some View {
@@ -625,69 +549,6 @@ private extension ManagementView {
                 isUpdatingCloudKit = false
             }
         }
-    }
-
-    private func deleteUserData(_ userName: String) async {
-        do {
-            try await CloudKitService.shared.deleteUserData(groupID: currentGroupID, userName: userName)
-            await MainActor.run {
-                toastMessage = "ユーザー「\(userName)」のデータを削除しました"
-            }
-            await refreshSummaries()
-            await loadGroupMembers()
-        } catch {
-            await MainActor.run {
-                toastMessage = "削除失敗: \(error.localizedDescription)"
-            }
-        }
-    }
-    
-    private func deleteAllCloudKitData() async {
-        do {
-            try await CloudKitService.shared.deleteAllCloudKitData()
-            await MainActor.run {
-                toastMessage = "すべてのCloudKitデータを削除しました"
-                groupMembers = []
-                selectedUser = ""
-                summaries = ([], 0)
-            }
-        } catch {
-            await MainActor.run {
-                toastMessage = "削除失敗: \(error.localizedDescription)"
-            }
-        }
-    }
-}
-
-private struct TaskTotalRow: View {
-    let task: TaskUsageSummary
-    let palette: [Color]
-    
-    var body: some View {
-        HStack(alignment: .center, spacing: 4) {
-            Text(task.taskName)
-                .frame(width: 120, alignment: .leading)
-            
-            GeometryReader { geo in
-                let totalWidth = geo.size.width
-                let safeTotal  = max(task.totalSeconds, 1)
-                HStack(spacing: 0) {
-                    ForEach(Array(task.appBreakdown.enumerated()), id: \.offset) { idx, app in
-                        let w = totalWidth * CGFloat(app.seconds) / CGFloat(safeTotal)
-                        Rectangle()
-                            .fill(palette[idx % palette.count])
-                            .frame(width: max(w, 1), height: 18)
-                    }
-                }
-            }
-            .frame(height: 18)
-            .layoutPriority(1)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            
-            Text(task.totalSeconds.hmString)
-                .frame(width: 70, alignment: .trailing)
-        }
-        .frame(maxWidth: .infinity)
     }
 }
 
@@ -1123,27 +984,6 @@ private struct TaskAppStackedChartView: View {
                                             isUpdatingCloudKit: $isUpdatingCloudKit,
                                             cloudKitUpdateMessage: $cloudKitUpdateMessage) }
         }
-    }
-}
-
-private struct OverallAppUsageBarView: View {
-    let usages: [(name: String, ratio: Double)]
-    let palette: [Color]
-    var body: some View {
-        GeometryReader { geo in
-            let totalWidth = geo.size.width
-            HStack(spacing: 0) {
-                ForEach(Array(usages.enumerated()), id: \.offset) { idx, u in
-                    let width = totalWidth * CGFloat(u.ratio)
-                    Rectangle()
-                        .fill(palette[idx % palette.count])
-                        .frame(width: width)
-                        .overlay(width >= 40 ? Text("\(u.name.prefix(10)) \(Int(u.ratio * 100))%")
-                                    .font(.caption2).foregroundColor(.white) : nil)
-                }
-            }
-        }
-        .frame(height: 18)
     }
 }
 

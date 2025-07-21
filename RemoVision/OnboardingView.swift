@@ -4,7 +4,6 @@ import AppKit
 #endif
 
 struct OnboardingView: View {
-    @AppStorage("currentGroupID") private var currentGroupID = ""
     @State private var showSheet = false
     @State private var animateGradient = false
     @State private var showContent = false

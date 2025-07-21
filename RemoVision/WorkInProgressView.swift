@@ -16,7 +16,6 @@ struct WorkInProgressView: View {
         self.selectedTaskIds = selectedTaskIds
     }
     
-    @State private var expandedTasks: [TaskItem] = []
     @State private var selectedTasks: [TaskItem] = []
     
     @State private var showBackAlert: Bool = false
