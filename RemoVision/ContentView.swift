@@ -223,6 +223,40 @@ struct ContentView: View {
                                 focusedButton = .cameraTest
                             }
                         }
+#if DEBUG
+// デバッグボタンの近くに追加
+Button("Test CKShare") {
+    // 現在のグループを退出
+    Task {
+        await SessionDataStore.shared.wipeAllPersistentData()
+        CloudKitService.shared.clearTemporaryStorage()
+        
+        await MainActor.run {
+            GroupInfoStore.shared.groupInfo = nil
+            currentGroupID = ""
+            userName = ""
+            UserDefaults.standard.removeObject(forKey: "currentGroupID")
+            UserDefaults.standard.removeObject(forKey: "userName")
+            UserDefaults.standard.synchronize()
+            
+            // 少し待ってからURLを処理
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                // CKShare URLを直接処理
+                let testURL = URL(string: "https://www.icloud.com/share/0fb4q5vb-Ne2-_Ij4UOLdgDYA#difficult")!
+                
+                // RemoVisionAppのhandleIncomingURLを呼ぶ
+                NotificationCenter.default.post(
+                    name: Notification.Name("TestCKShareURL"),
+                    object: nil,
+                    userInfo: ["url": testURL]
+                )
+            }
+        }
+    }
+}
+.buttonStyle(.borderedProminent)
+.tint(.green)
+#endif
                     }
                     Spacer().frame(height: 12)
                 }
@@ -544,12 +578,19 @@ struct GroupDetailPanel: View {
     let onClose: () -> Void
     
     @State private var urlFieldHover = false
+    @State private var actualShareURL: String? = nil
+    @State private var isLoadingShareURL = false
     
     @AppStorage("currentGroupID") private var currentGroupID = ""
     @AppStorage("userName") private var storedUserName = ""
     
     private var shareURL: String {
-        "monitoringsystem://share/\(groupInfo.recordID)"
+        // 実際のCKShare URLがあればそれを使用
+        if let actualURL = actualShareURL {
+            return actualURL
+        }
+        // なければカスタムURL（フォールバック）
+        return "monitoringsystem://share/\(groupInfo.recordID)"
     }
     
     var body: some View {
@@ -616,30 +657,36 @@ struct GroupDetailPanel: View {
                     .foregroundColor(.secondary)
                 
                 HStack(spacing: 8) {
-                    Text(shareURL)
-                        .font(.system(size: 12, design: .monospaced))
-                        .foregroundColor(.primary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 10)
-                        .background(
-                            RoundedRectangle(cornerRadius: 8)
-                                .fill(Color.gray.opacity(0.1))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 8)
-                                        .strokeBorder(
-                                            urlFieldHover ? Color.accentColor.opacity(0.3) : Color.gray.opacity(0.2),
-                                            lineWidth: 1
-                                        )
-                                )
-                        )
-                        .onHover { hovering in
-                            withAnimation(.easeInOut(duration: 0.2)) {
-                                urlFieldHover = hovering
+                    if isLoadingShareURL {
+                        ProgressView()
+                            .scaleEffect(0.7)
+                            .frame(maxWidth: .infinity)
+                    } else {
+                        Text(shareURL)
+                            .font(.system(size: 12, design: .monospaced))
+                            .foregroundColor(.primary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 10)
+                            .background(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .fill(Color.gray.opacity(0.1))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 8)
+                                            .strokeBorder(
+                                                urlFieldHover ? Color.accentColor.opacity(0.3) : Color.gray.opacity(0.2),
+                                                lineWidth: 1
+                                            )
+                                    )
+                            )
+                            .onHover { hovering in
+                                withAnimation(.easeInOut(duration: 0.2)) {
+                                    urlFieldHover = hovering
+                                }
                             }
-                        }
+                    }
                     
                     Button {
                         NSPasteboard.general.clearContents()
@@ -671,6 +718,9 @@ struct GroupDetailPanel: View {
                     }
                     .buttonStyle(.plain)
                 }
+            }
+            .onAppear {
+                fetchActualShareURL()
             }
             
             HStack(spacing: 12) {
@@ -748,6 +798,61 @@ struct GroupDetailPanel: View {
                         )
                 )
         )
+    }
+    // 実際のCKShare URLを取得
+    private func fetchActualShareURL() {
+        isLoadingShareURL = true
+        
+        Task {
+            let zoneID = CloudKitService.workZoneID
+            let recordID = CKRecord.ID(recordName: groupInfo.recordID, zoneID: zoneID)
+            let db = CKContainer.default().privateCloudDatabase
+            
+            do {
+                // グループレコードを取得
+                let groupRecord = try await db.record(for: recordID)
+                
+                // グループレコードに関連付けられたCKShareを取得
+                if let shareReference = groupRecord.share {
+                    do {
+                        let shareRecord = try await db.record(for: shareReference.recordID)
+                        
+                        if let share = shareRecord as? CKShare {
+                            await MainActor.run {
+                                actualShareURL = share.url?.absoluteString
+                                isLoadingShareURL = false
+                                
+                                #if DEBUG
+                                print("✅ 実際のCKShare URL取得: \(actualShareURL ?? "nil")")
+                                #endif
+                            }
+                        }
+                    } catch {
+                        #if DEBUG
+                        print("⚠️ CKShare参照は存在するが取得できない: \(error)")
+                        #endif
+                        await MainActor.run {
+                            isLoadingShareURL = false
+                        }
+                    }
+                } else {
+                    // shareReferenceがない場合、シンプルにカスタムURLを使用
+                    await MainActor.run {
+                        isLoadingShareURL = false
+                        #if DEBUG
+                        print("⚠️ グループレコードにCKShare参照がありません")
+                        #endif
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    isLoadingShareURL = false
+                    #if DEBUG
+                    print("❌ グループレコード取得エラー: \(error)")
+                    #endif
+                }
+            }
+        }
     }
 }
 

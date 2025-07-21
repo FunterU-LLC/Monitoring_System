@@ -45,5 +45,18 @@
             </array>
         </dict>
     </array>
+    
+    <!-- ここから追加 -->
+    <key>CKSharingSupported</key>
+    <true/>
+    
+    <key>NSUserActivityTypes</key>
+    <array>
+        <string>CKShareActivity</string>
+        <string>FunterU.MonitoringSystem.viewGroup</string>
+        <string>FunterU.MonitoringSystem.shareGroup</string>
+    </array>
+    <!-- ここまで追加 -->
+    
 </dict>
 </plist>

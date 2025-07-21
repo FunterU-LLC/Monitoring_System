@@ -72,13 +72,44 @@ struct GroupCreationSheet: View {
         guard let sheetWindow = NSApp.keyWindow else { return }
         let anchorWindow = sheetWindow.sheetParent ?? sheetWindow
 
-        let picker = NSSharingServicePicker(items: [url])
+        // CKShare URLかカスタムURLかを判定
+        let shareItems: [Any]
+        if url.absoluteString.contains("icloud.com/share") {
+            // CKShare URLの場合、そのまま共有
+            shareItems = [url]
+            
+            #if DEBUG
+            print("📤 CKShare URLを共有: \(url)")
+            #endif
+        } else {
+            // カスタムURLの場合（フォールバック）
+            shareItems = [url]
+            
+            #if DEBUG
+            print("📤 カスタムURLを共有: \(url)")
+            #endif
+        }
+
+        let picker = NSSharingServicePicker(items: shareItems)
         picker.show(relativeTo: .zero,
                     of: anchorWindow.contentView!,
                     preferredEdge: .minY)
         
+        // クリップボードにもコピー
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(url.absoluteString, forType: .string)
+        
+        // 成功通知
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            let alert = NSAlert()
+            alert.messageText = "共有URLをコピーしました"
+            alert.informativeText = url.absoluteString.contains("icloud.com") ?
+                "iCloudの共有URLがクリップボードにコピーされました。" :
+                "グループ参加用のURLがクリップボードにコピーされました。"
+            alert.alertStyle = .informational
+            alert.addButton(withTitle: "OK")
+            alert.runModal()
+        }
         #endif
     }
 }

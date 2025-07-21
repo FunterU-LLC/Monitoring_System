@@ -202,16 +202,25 @@ final class CloudKitService {
             op.modifyRecordsResultBlock = { result in
                 switch result {
                 case .success:
-                    if share.url != nil {
-                        let recordName = groupRecord.recordID.recordName
-                        let customURL = URL(string: "monitoringsystem://share/\(recordName)")!
-                        
-                        cont.resume(returning: (customURL, groupRecord.recordID.recordName))
+                    // share.urlが実際のiCloud共有URL
+                    if let shareURL = share.url {
+                        #if DEBUG
+                        print("✅ CKShare URL取得成功: \(shareURL)")
+                        #endif
+                        cont.resume(returning: (shareURL, groupRecord.recordID.recordName))
                     } else {
-                        cont.resume(throwing: CKServiceError.notImplemented)
+                        #if DEBUG
+                        print("❌ CKShare URLが取得できません")
+                        #endif
+                        // フォールバック：一時的にカスタムURLを使用
+                        let fallbackURL = URL(string: "monitoringsystem://share/\(groupRecord.recordID.recordName)")!
+                        cont.resume(returning: (fallbackURL, groupRecord.recordID.recordName))
                     }
 
                 case .failure(let error):
+                    #if DEBUG
+                    print("❌ グループ作成エラー: \(error)")
+                    #endif
                     cont.resume(throwing: error)
                 }
             }
@@ -220,28 +229,64 @@ final class CloudKitService {
     }
     
     func acceptShare(from metadata: CKShare.Metadata) async throws {
+        #if DEBUG
+        print("===== acceptShare =====")
+        print("Share ID: \(metadata.share.recordID)")
+        print("Root Record ID: \(metadata.rootRecordID)")
+        #endif
         
         return try await withCheckedThrowingContinuation { continuation in
             let operation = CKAcceptSharesOperation(shareMetadatas: [metadata])
             
             operation.perShareResultBlock = { metadata, result in
+                #if DEBUG
                 switch result {
-                case .success:
-                    break
-                case .failure:
-                    break
+                case .success(let share):
+                    print("✅ 個別共有承認成功: \(share.recordID)")
+                case .failure(let error):
+                    print("❌ 個別共有承認エラー: \(error)")
+                    
+                    // オーナーエラーは無視
+                    if let ckError = error as? CKError,
+                       ckError.localizedDescription.contains("owner participant") {
+                        print("ℹ️ オーナーによる承認試行 - 正常")
+                    }
                 }
+                #endif
             }
             
             operation.acceptSharesResultBlock = { result in
                 switch result {
                 case .success:
+                    #if DEBUG
+                    print("✅ 共有承認操作完了")
+                    #endif
                     continuation.resume(returning: ())
+                    
                 case .failure(let error):
+                    #if DEBUG
+                    print("❌ 共有承認操作失敗: \(error)")
+                    #endif
+                    
+                    // 特定のエラーは成功として扱う
+                    if let ckError = error as? CKError {
+                        switch ckError.code {
+                        case .alreadyShared:
+                            #if DEBUG
+                            print("ℹ️ すでに共有済み - 成功として扱う")
+                            #endif
+                            continuation.resume(returning: ())
+                            return
+                        default:
+                            break
+                        }
+                    }
+                    
                     continuation.resume(throwing: error)
                 }
             }
             
+            operation.qualityOfService = .userInitiated
             CKContainer.default().add(operation)
         }
     }
