@@ -8,7 +8,6 @@
 
 /* Begin PBXBuildFile section */
 		4AB0FF882D47619400A3CD5C /* RemoVisionApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AB0FF872D47619400A3CD5C /* RemoVisionApp.swift */; };
-		4AB0FF8C2D47619600A3CD5C /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 4AB0FF8B2D47619600A3CD5C /* Assets.xcassets */; };
 		4AB0FF8F2D47619600A3CD5C /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 4AB0FF8E2D47619600A3CD5C /* Preview Assets.xcassets */; };
 		4AB0FF9A2D47619600A3CD5C /* MonitoringSystemTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AB0FF992D47619600A3CD5C /* MonitoringSystemTests.swift */; };
 		4AB0FFA42D47619600A3CD5C /* MonitoringSystemUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AB0FFA32D47619600A3CD5C /* MonitoringSystemUITests.swift */; };
@@ -32,6 +31,7 @@
 		D000C99B2DCF4A7B004E47C8 /* GroupCreationSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = D000C99A2DCF4A7B004E47C8 /* GroupCreationSheet.swift */; };
 		D000C99F2DCF6FEB004E47C8 /* AcceptShareSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = D000C99E2DCF6FEB004E47C8 /* AcceptShareSheet.swift */; };
 		D0125BEC2DBD145200161E82 /* AppColorManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0125BEB2DBD145200161E82 /* AppColorManager.swift */; };
+		D05AF4762E2E452C001E482A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 4AB0FF8B2D47619600A3CD5C /* Assets.xcassets */; };
 		D080E9D12DFE3B220022A6AA /* EventKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D080E9D02DFE3B220022A6AA /* EventKit.framework */; };
 		D080E9D62E003B320022A6AA /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = D080E9D42E003B320022A6AA /* InfoPlist.strings */; };
 		D080E9D92E0144180022A6AA /* PermissionCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = D080E9D82E0144180022A6AA /* PermissionCoordinator.swift */; };
@@ -86,6 +86,7 @@
 		D000C99A2DCF4A7B004E47C8 /* GroupCreationSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroupCreationSheet.swift; sourceTree = "<group>"; };
 		D000C99E2DCF6FEB004E47C8 /* AcceptShareSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AcceptShareSheet.swift; sourceTree = "<group>"; };
 		D0125BEB2DBD145200161E82 /* AppColorManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppColorManager.swift; sourceTree = "<group>"; };
+		D05AF4752E2E40D7001E482A /* ICON_RemoVision.icon */ = {isa = PBXFileReference; lastKnownFileType = wrapper; path = ICON_RemoVision.icon; sourceTree = "<group>"; };
 		D063ED7A2E13DF2D0043106E /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		D080E9D02DFE3B220022A6AA /* EventKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = EventKit.framework; path = System/Library/Frameworks/EventKit.framework; sourceTree = SDKROOT; };
 		D080E9D72E003B530022A6AA /* ja */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = ja; path = ja.lproj/InfoPlist.strings; sourceTree = "<group>"; };
@@ -124,6 +125,7 @@
 		4AB0FF7B2D47619400A3CD5C = {
 			isa = PBXGroup;
 			children = (
+				D05AF4752E2E40D7001E482A /* ICON_RemoVision.icon */,
 				4AB0FF862D47619400A3CD5C /* RemoVision */,
 				4AB0FF982D47619600A3CD5C /* RemoVisionTests */,
 				4AB0FFA22D47619600A3CD5C /* RemoVisionUITests */,
@@ -320,8 +322,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				4AB0FF8F2D47619600A3CD5C /* Preview Assets.xcassets in Resources */,
+				D05AF4762E2E452C001E482A /* Assets.xcassets in Resources */,
 				D080E9D62E003B320022A6AA /* InfoPlist.strings in Resources */,
-				4AB0FF8C2D47619600A3CD5C /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -543,10 +545,11 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_ENTITLEMENTS = RemoVision/RemoVision.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 10;
+				CURRENT_PROJECT_VERSION = 15;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "";
 				DEVELOPMENT_TEAM = NP6Q627625;
@@ -564,7 +567,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.6;
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = FunterU.MonitoringSystem;
 				PRODUCT_NAME = RemoVision;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -577,10 +580,11 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				CODE_SIGN_ENTITLEMENTS = RemoVision/RemoVision.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 10;
+				CURRENT_PROJECT_VERSION = 15;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "";
 				DEVELOPMENT_TEAM = NP6Q627625;
@@ -598,7 +602,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.6;
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = FunterU.MonitoringSystem;
 				PRODUCT_NAME = RemoVision;
 				SWIFT_EMIT_LOC_STRINGS = YES;

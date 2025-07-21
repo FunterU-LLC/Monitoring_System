@@ -1,61 +1,90 @@
 {
   "images" : [
     {
-      "filename" : "MonitoringSystem_icon_16.png",
+      "filename" : "icon_1024pt_1x.png",
+      "idiom" : "universal",
+      "platform" : "ios",
+      "size" : "1024x1024"
+    },
+    {
+      "appearances" : [
+        {
+          "appearance" : "luminosity",
+          "value" : "dark"
+        }
+      ],
+      "filename" : "ICON_RemoVision-macOS-Dark-512x512@2x.png",
+      "idiom" : "universal",
+      "platform" : "ios",
+      "size" : "1024x1024"
+    },
+    {
+      "appearances" : [
+        {
+          "appearance" : "luminosity",
+          "value" : "tinted"
+        }
+      ],
+      "idiom" : "universal",
+      "platform" : "ios",
+      "size" : "1024x1024"
+    },
+    {
+      "filename" : "icon_16pt_1x.png",
       "idiom" : "mac",
       "scale" : "1x",
       "size" : "16x16"
     },
     {
-      "filename" : "MonitoringSystem_icon_32.png",
+      "filename" : "icon_32pt_1x.png",
       "idiom" : "mac",
       "scale" : "2x",
       "size" : "16x16"
     },
     {
-      "filename" : "MonitoringSystem_icon_32 1.png",
+      "filename" : "icon_32pt_1x 1.png",
       "idiom" : "mac",
       "scale" : "1x",
       "size" : "32x32"
     },
     {
-      "filename" : "MonitoringSystem_icon_64.png",
+      "filename" : "icon_32pt_2x.png",
       "idiom" : "mac",
       "scale" : "2x",
       "size" : "32x32"
     },
     {
-      "filename" : "MonitoringSystem_icon_128.png",
+      "filename" : "icon_128pt_1x.png",
       "idiom" : "mac",
       "scale" : "1x",
       "size" : "128x128"
     },
     {
-      "filename" : "MonitoringSystem_icon_256.png",
+      "filename" : "icon_256pt_1x.png",
       "idiom" : "mac",
       "scale" : "2x",
       "size" : "128x128"
     },
     {
-      "filename" : "MonitoringSystem_icon_256 1.png",
+      "filename" : "icon_256pt_1x 1.png",
       "idiom" : "mac",
       "scale" : "1x",
       "size" : "256x256"
     },
     {
-      "filename" : "MonitoringSystem_icon_512.png",
+      "filename" : "icon_512pt_1x.png",
       "idiom" : "mac",
       "scale" : "2x",
       "size" : "256x256"
     },
     {
-      "filename" : "MonitoringSystem_icon_512 1.png",
+      "filename" : "icon_512pt_1x 1.png",
       "idiom" : "mac",
       "scale" : "1x",
       "size" : "512x512"
     },
     {
-      "filename" : "MonitoringSystem_icon_1024.png",
+      "filename" : "icon_1024pt_1x 1.png",
       "idiom" : "mac",
       "scale" : "2x",
       "size" : "512x512"

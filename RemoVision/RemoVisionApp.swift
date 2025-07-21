@@ -7,7 +7,7 @@ extension CKShare.Metadata: @retroactive Identifiable {
     public var id: CKRecord.ID { share.recordID }
 }
 
-struct GroupInfo: Codable {
+struct GroupInfo: Codable, Equatable {
     let groupName: String
     let ownerName: String
     let recordID: String
@@ -116,12 +116,25 @@ class GroupInfoStore: ObservableObject {
 
     init() {
         let defaults = UserDefaults.standard
-        if let data = defaults.data(forKey: userDefaultsKey),
-           let loaded = try? JSONDecoder().decode(GroupInfo.self, from: data) {
-            self.groupInfo = loaded
+        
+        #if DEBUG
+        print("===== GroupInfoStore Init =====")
+        if let data = defaults.data(forKey: userDefaultsKey) {
+            print("UserDefaultsにデータあり: \(data.count) bytes")
+            do {
+                let loaded = try JSONDecoder().decode(GroupInfo.self, from: data)
+                print("デコード成功: \(loaded.groupName)")
+                self.groupInfo = loaded
+            } catch {
+                print("❌ デコードエラー: \(error)")
+                self.groupInfo = nil
+            }
         } else {
+            print("UserDefaultsにデータなし")
             self.groupInfo = nil
         }
+        print("================================")
+        #endif
     }
 }
 

@@ -1,6 +1,7 @@
 import SwiftUI
 import AppKit
 import ObjectiveC.runtime
+import CloudKit
 
 enum MainButtonFocus: Int, CaseIterable {
     case additionalReport
@@ -240,6 +241,15 @@ struct ContentView: View {
             }
             .task {
                 showOnboarding = true
+                
+                // GroupIDはあるがGroupInfoがない場合、CloudKitから再取得を試みる
+                if !currentGroupID.isEmpty && groupInfoStore.groupInfo == nil {
+                    #if DEBUG
+                    print("⚠️ GroupIDはあるがGroupInfoがない。CloudKitから再取得を試みます...")
+                    #endif
+                    
+                    await fetchGroupInfoFromCloudKit(groupID: currentGroupID)
+                }
             }
             .onChange(of: geo.size) { _, newSize in
                 parentWindowSize = newSize
@@ -293,7 +303,83 @@ struct ContentView: View {
                 }
             }
         )
+        .onAppear {
+            #if DEBUG
+            print("===== ContentView onAppear =====")
+            print("groupInfoStore.groupInfo != nil: \(groupInfoStore.groupInfo != nil)")
+            if let info = groupInfoStore.groupInfo {
+                print("グループ名: \(info.groupName)")
+                print("オーナー名: \(info.ownerName)")
+                print("レコードID: \(info.recordID)")
+            } else {
+                print("グループ情報なし")
+            }
+            print("currentGroupID: \(currentGroupID)")
+            print("userName: \(userName)")
+            print("================================")
+            #endif
+        }
+        .onChange(of: groupInfoStore.groupInfo) { oldValue, newValue in
+            #if DEBUG
+            print("===== GroupInfo Changed =====")
+            print("Old value != nil: \(oldValue != nil)")
+            print("New value != nil: \(newValue != nil)")
+            if let info = newValue {
+                print("新しいグループ名: \(info.groupName)")
+                print("新しいオーナー名: \(info.ownerName)")
+                print("新しいレコードID: \(info.recordID)")
+            } else {
+                print("グループ情報がクリアされました")
+            }
+            print("=============================")
+            #endif
+        }
     }
+
+        // ContentView構造体内に以下のメソッドを追加
+        private func fetchGroupInfoFromCloudKit(groupID: String) async {
+            let zoneID = CloudKitService.workZoneID
+            let groupRecordID = CKRecord.ID(recordName: groupID, zoneID: zoneID)
+            let db = CKContainer.default().privateCloudDatabase
+            
+            do {
+                let record = try await db.record(for: groupRecordID)
+                
+                let groupName = record["groupName"] as? String ?? "Unknown Group"
+                let ownerName = record["ownerName"] as? String ?? "Unknown Owner"
+                
+                await MainActor.run {
+                    GroupInfoStore.shared.groupInfo = GroupInfo(
+                        groupName: groupName,
+                        ownerName: ownerName,
+                        recordID: groupID
+                    )
+                    
+                    #if DEBUG
+                    print("✅ CloudKitからグループ情報を復元しました")
+                    print("グループ名: \(groupName)")
+                    print("オーナー名: \(ownerName)")
+                    #endif
+                }
+            } catch {
+                #if DEBUG
+                print("❌ CloudKitからの取得に失敗: \(error)")
+                #endif
+                
+                // 取得に失敗した場合はリセット
+                await MainActor.run {
+                    currentGroupID = ""
+                    userName = ""
+                    
+                    let alert = NSAlert()
+                    alert.messageText = "グループ情報の取得に失敗"
+                    alert.informativeText = "グループ情報を取得できませんでした。再度グループに参加してください。"
+                    alert.alertStyle = .warning
+                    alert.addButton(withTitle: "OK")
+                    alert.runModal()
+                }
+            }
+        }
     
     func shareGroupURL(_ urlString: String) {
         #if os(macOS)
