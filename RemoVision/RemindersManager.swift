@@ -36,11 +36,6 @@ class RemindersManager {
 
     
     func requestAccess() async {
-#if DEBUG
-        print("🔍 リマインダー権限リクエストが呼ばれました")
-        print("呼び出し元:")
-        Thread.callStackSymbols.prefix(10).forEach { print($0) }
-#endif
         let status = EKEventStore.authorizationStatus(for: .reminder)
         
         switch status {

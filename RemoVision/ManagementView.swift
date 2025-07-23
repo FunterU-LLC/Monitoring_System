@@ -24,8 +24,6 @@ struct ManagementView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(RemindersManager.self) var remindersManager
     @State private var period: ReportPeriod = .today
-    private let palette: [Color] = [.accentColor, .green, .orange, .pink,
-                                    .purple, .yellow, .mint, .red]
 
     @State private var summaries: ([TaskUsageSummary], Int) = ([], 0)
     @State private var toastMessage: String? = nil
@@ -45,12 +43,32 @@ struct ManagementView: View {
     @State private var userSearchText: String = ""
     
     @FocusState private var searchFieldFocused: Bool
+    
+    @State private var selectedParentTask: String = "全タスク"
+    @State private var availableParentTasks: [String] = []
 
     private var tasks: [TaskUsageSummary] {
         summaries.0.sorted { $0.totalSeconds > $1.totalSeconds }
     }
     
     private var completedCount: Int { summaries.1 }
+    
+    private var filteredTasks: [TaskUsageSummary] {
+        let filtered: [TaskUsageSummary]
+        switch selectedParentTask {
+        case "全タスク":
+            filtered = tasks
+        case "(親タスクなし)":
+            filtered = tasks.filter { $0.parentTaskName == nil }
+        default:
+            filtered = tasks.filter { $0.parentTaskName == selectedParentTask }
+        }
+        return filtered.sorted { $0.totalSeconds > $1.totalSeconds }
+    }
+
+    private var filteredCompletedCount: Int {
+        filteredTasks.filter { $0.isCompleted }.count
+    }
 
     var body: some View {
         ScrollView {
@@ -70,14 +88,24 @@ struct ManagementView: View {
                             .foregroundColor(.secondary)
                         Text("ネットワーク状態: \(CloudKitService.shared.getNetworkStatus())")
                             .font(.caption)
-                            .foregroundColor(CloudKitService.shared.isOnline ? Color(red: 0/255, green: 128/255, blue: 0/255) : .red)  // 緑はそのまま、オンラインの緑は変更なし
+                            .foregroundColor(CloudKitService.shared.isOnline ? Color(red: 0/255, green: 128/255, blue: 0/255) : .red)
                     }
                     .padding(.bottom, 16)
                 }
 
                 userSelectionSection
 
-                periodSelector
+                filterSection
+                
+                #if DEBUG
+                Button("キャッシュをクリア") {
+                    Task {
+                        await CloudKitCacheStore.shared.clearAllCache()
+                        await refreshSummaries()
+                    }
+                }
+                .buttonStyle(.bordered)
+                #endif
 
                 if let error = errorMessage {
                     Text("エラー: \(error)")
@@ -93,7 +121,7 @@ struct ManagementView: View {
 
                 taskTotalChart
 
-                TaskAppStackedChartView(tasks: tasks,
+                TaskAppStackedChartView(tasks: filteredTasks,
                                         toastMessage: $toastMessage,
                                         refreshAction: {
                                             Task { await refreshSummaries() }
@@ -352,7 +380,7 @@ private extension ManagementView {
                     if isCurrentUser {
                         Image(systemName: "star.fill")
                             .font(.system(size: 12))
-                            .foregroundColor(isSelected ? .white : Color(red: 255/255, green: 204/255, blue: 102/255))  // オレンジに変更
+                            .foregroundColor(isSelected ? .white : Color(red: 255/255, green: 204/255, blue: 102/255))
                     }
                     
                     Text(member)
@@ -364,7 +392,7 @@ private extension ManagementView {
                 .padding(.vertical, 8)
                 .background(
                     Capsule()
-                        .fill(isSelected ? Color(red: 255/255, green: 204/255, blue: 102/255) : (isHovered ? Color.gray.opacity(0.15) : Color.gray.opacity(0.1)))  // オレンジに変更
+                        .fill(isSelected ? Color(red: 255/255, green: 204/255, blue: 102/255) : (isHovered ? Color.gray.opacity(0.15) : Color.gray.opacity(0.1)))
                         .overlay(
                             Capsule()
                                 .strokeBorder(
@@ -398,29 +426,108 @@ private extension ManagementView {
         }
     }
     
+    private func extractParentTasks(from tasks: [TaskUsageSummary]) -> [String] {
+        var options = ["全タスク"]
+        
+        let parentTaskNames = Set(tasks.compactMap { $0.parentTaskName })
+        options.append(contentsOf: parentTaskNames.sorted())
+        
+        if tasks.contains(where: { $0.parentTaskName == nil }) {
+            options.append("(親タスクなし)")
+        }
+        
+        return options
+    }
     
-    var periodSelector: some View {
-        HStack(spacing: 12) {
-            ForEach(ReportPeriod.allCases) { p in
-                Text(p.rawValue)
-                    .fontWeight(p == period ? .bold : .regular)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background(Capsule()
-                        .fill(p == period ? Color(red: 255/255, green: 204/255, blue: 102/255).opacity(0.25) : .clear))  // オレンジに変更
-                    .contentShape(Capsule())
-                    .onTapGesture { period = p }
+    
+    var filterSection: some View {
+        VStack(spacing: 16) {
+            HStack(spacing: 12) {
+                ForEach(ReportPeriod.allCases) { p in
+                    Text(p.rawValue)
+                        .fontWeight(p == period ? .bold : .regular)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(Capsule()
+                            .fill(p == period ? Color(red: 255/255, green: 204/255, blue: 102/255).opacity(0.25) : .clear))
+                        .contentShape(Capsule())
+                        .onTapGesture { period = p }
+                }
+            }
+            
+            if !availableParentTasks.isEmpty && availableParentTasks.count > 1 {
+                HStack {
+                    Label("親タスクでフィルター", systemImage: "line.3.horizontal.decrease.circle")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(.secondary)
+                    
+                    Picker("", selection: $selectedParentTask) {
+                        ForEach(availableParentTasks, id: \.self) { parent in
+                            HStack {
+                                if parent == "全タスク" {
+                                    Image(systemName: "list.bullet")
+                                } else if parent == "(親タスクなし)" {
+                                    Image(systemName: "minus.circle")
+                                } else {
+                                    Image(systemName: "folder")
+                                }
+                                Text(parent)
+                            }
+                            .tag(parent)
+                        }
+                    }
+                    .pickerStyle(MenuPickerStyle())
+                    .frame(width: 200)
+                    
+                    if selectedParentTask != "全タスク" {
+                        Button {
+                            withAnimation(.spring(response: 0.3)) {
+                                selectedParentTask = "全タスク"
+                            }
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.system(size: 16))
+                                .foregroundColor(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                        .help("フィルターをクリア")
+                    }
+                    
+                    Spacer()
+                    
+                    Text("\(filteredTasks.count)タスク")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(
+                            Capsule()
+                                .fill(Color.gray.opacity(0.1))
+                        )
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color.gray.opacity(0.05))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12)
+                                .strokeBorder(Color.gray.opacity(0.1), lineWidth: 1)
+                        )
+                )
             }
         }
     }
     
     var kpiCards: some View {
-        let totalSec = tasks.reduce(0) { $0 + $1.totalSeconds }
+        let totalSec = filteredTasks.reduce(0) { $0 + $1.totalSeconds }
+        let displayedCompletedCount = selectedParentTask == "全タスク" ? completedCount : filteredCompletedCount
+        
         return HStack(spacing: 16) {
             kpi("合計作業時間", totalSec.hmString, "clock.fill")
-            kpi("完了タスク", "\(completedCount)", "checkmark.circle.fill")
+            kpi("完了タスク", "\(displayedCompletedCount)", "checkmark.circle.fill")
         }
-        .animation(.spring(response: 0.01, dampingFraction: 0.3), value: completedCount)
+        .animation(.spring(response: 0.01, dampingFraction: 0.3), value: displayedCompletedCount)
         .animation(.spring(response: 0.01, dampingFraction: 0.3), value: totalSec)
     }
     
@@ -440,10 +547,20 @@ private extension ManagementView {
     }
     
     private var taskTotalChart: some View {
-        let maxSec = tasks.first?.totalSeconds ?? 1
+        let maxSec = filteredTasks.first?.totalSeconds ?? 1
         return VStack(alignment: .leading, spacing: 4) {
-            Text("タスク別作業時間").font(.headline)
-            ForEach(tasks) { task in
+            HStack {
+                Text("タスク別作業時間")
+                    .font(.headline)
+                
+                if selectedParentTask != "全タスク" {
+                    Text("(\(selectedParentTask))")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+            }
+            
+            ForEach(filteredTasks) { task in
                 TaskLengthRow(task: task,
                               maxSeconds: maxSec,
                               toastMessage: $toastMessage,
@@ -491,13 +608,17 @@ private extension ManagementView {
             )
             
             await MainActor.run {
-                // 親タスク（「&」で始まるタスク）を除外
                 let filteredSummaries = result.0.filter { !$0.taskName.hasPrefix("&") }
                 let filteredResult = (filteredSummaries, result.1)
                 
                 withAnimation(.easeInOut(duration: 0.4)) {
                     summaries = filteredResult
                 }
+                availableParentTasks = extractParentTasks(from: summaries.0)
+                if !availableParentTasks.contains(selectedParentTask) {
+                    selectedParentTask = "全タスク"
+                }
+                
                 isUpdatingCloudKit = false
             }
         } catch {
@@ -564,7 +685,6 @@ private struct TaskStackedRow: View {
     @Environment(RemindersManager.self) var remindersManager
     
     @State private var isExpanded: Bool = false
-    @State private var localIsCompleted: Bool? = nil
     @State private var nameHover = false
     @State private var isEditingName = false
     @State private var editName = ""
@@ -636,14 +756,12 @@ private struct TaskStackedRow: View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
                 Button {
+                    toggleCompletion()
                 } label: {
                     Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "xmark.circle.fill")
-                        .foregroundColor(task.isCompleted ? .green : .orange)  // 既にオレンジなのでそのまま
+                        .foregroundColor(task.isCompleted ? .green : .orange)
                 }
                 .buttonStyle(.plain)
-                .onTapGesture {
-                    toggleCompletion()
-                }
                 
                 if isEditingName {
                     TextField("", text: $editName)
@@ -658,11 +776,11 @@ private struct TaskStackedRow: View {
                                   editName == task.taskName)
                 } else {
                     HStack(spacing: 4) {
-                        Text(task.taskName)
+                        Text(task.parentTaskName != nil ? "\(task.parentTaskName!) - \(task.taskName)" : task.taskName)
                             .font(.subheadline)
                             .lineLimit(1)
                             .truncationMode(.tail)
-                            .help(task.taskName)
+                            .help(task.parentTaskName != nil ? "\(task.parentTaskName!) - \(task.taskName)" : task.taskName)
                         
                         if nameHover {
                             Button {
@@ -686,7 +804,7 @@ private struct TaskStackedRow: View {
                     Image(systemName: "trash")
                 }
                 .buttonStyle(.plain)
-                .opacity(rowHover ? 1 : 0)  // 常にスペースを確保、表示/非表示はopacityで制御
+                .opacity(rowHover ? 1 : 0)
 
                 Text(task.totalSeconds.hmString)
                     .font(.caption2)
@@ -984,11 +1102,7 @@ private struct TaskAppStackedChartView: View {
         var map: [String: Color] = [:]
         for t in tasks {
             for a in t.appBreakdown {
-                // AppColorManagerの代わりにオレンジ系の色を生成
-                let hash = a.name.hashValue
-                let hue = Double(abs(hash) % 60) / 60.0  // 0.0〜1.0のオレンジ〜黄色の範囲
-                let baseHue = 0.083 + (hue * 0.083)  // オレンジ色の範囲（30度〜60度）
-                map[a.name] = Color(hue: baseHue, saturation: 0.8, brightness: 0.9)
+                map[a.name] = AppColorManager.shared.color(for: a.name)
             }
         }
         map["その他"] = .gray
@@ -1022,7 +1136,7 @@ private struct TaskLengthRow: View {
     @Binding var cloudKitUpdateMessage: String
     
     private var barColor: Color {
-        Color(red: 255/255, green: 204/255, blue: 102/255)  // オレンジに変更
+        Color(red: 255/255, green: 204/255, blue: 102/255)
     }
     
     @State private var hovering = false
@@ -1057,10 +1171,10 @@ private struct TaskLengthRow: View {
                     Spacer(minLength: 0)
                 } else {
                     HStack(spacing: 4) {
-                        Text(task.taskName)
+                        Text(task.parentTaskName != nil ? "\(task.parentTaskName!) - \(task.taskName)" : task.taskName)
                             .lineLimit(1)
                             .truncationMode(.tail)
-                            .help(task.taskName)
+                            .help(task.parentTaskName != nil ? "\(task.parentTaskName!) - \(task.taskName)" : task.taskName)
                         
                         if hovering {
                             Button {
@@ -1096,7 +1210,7 @@ private struct TaskLengthRow: View {
                             Image(systemName: "trash")
                         }
                         .buttonStyle(.plain)
-                        .opacity(rowHover ? 1 : 0)  // 常にスペースを確保
+                        .opacity(rowHover ? 1 : 0)
                     }
                 }
             }

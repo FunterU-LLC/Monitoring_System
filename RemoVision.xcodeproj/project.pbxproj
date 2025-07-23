@@ -32,6 +32,8 @@
 		D000C99F2DCF6FEB004E47C8 /* AcceptShareSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = D000C99E2DCF6FEB004E47C8 /* AcceptShareSheet.swift */; };
 		D0125BEC2DBD145200161E82 /* AppColorManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0125BEB2DBD145200161E82 /* AppColorManager.swift */; };
 		D03FC1F82E30E7CF007827AC /* Colors.swift in Sources */ = {isa = PBXBuildFile; fileRef = D03FC1F72E30E7CF007827AC /* Colors.swift */; };
+		D03FC1FA2E316B61007827AC /* CloudKitCacheModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = D03FC1F92E316B61007827AC /* CloudKitCacheModels.swift */; };
+		D03FC1FC2E316B74007827AC /* CloudKitCacheStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D03FC1FB2E316B74007827AC /* CloudKitCacheStore.swift */; };
 		D05AF4762E2E452C001E482A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 4AB0FF8B2D47619600A3CD5C /* Assets.xcassets */; };
 		D080E9D12DFE3B220022A6AA /* EventKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D080E9D02DFE3B220022A6AA /* EventKit.framework */; };
 		D080E9D62E003B320022A6AA /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = D080E9D42E003B320022A6AA /* InfoPlist.strings */; };
@@ -88,6 +90,8 @@
 		D000C99E2DCF6FEB004E47C8 /* AcceptShareSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AcceptShareSheet.swift; sourceTree = "<group>"; };
 		D0125BEB2DBD145200161E82 /* AppColorManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppColorManager.swift; sourceTree = "<group>"; };
 		D03FC1F72E30E7CF007827AC /* Colors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Colors.swift; sourceTree = "<group>"; };
+		D03FC1F92E316B61007827AC /* CloudKitCacheModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudKitCacheModels.swift; sourceTree = "<group>"; };
+		D03FC1FB2E316B74007827AC /* CloudKitCacheStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudKitCacheStore.swift; sourceTree = "<group>"; };
 		D05AF4752E2E40D7001E482A /* ICON_RemoVision.icon */ = {isa = PBXFileReference; lastKnownFileType = wrapper; path = ICON_RemoVision.icon; sourceTree = "<group>"; };
 		D063ED7A2E13DF2D0043106E /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		D080E9D02DFE3B220022A6AA /* EventKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = EventKit.framework; path = System/Library/Frameworks/EventKit.framework; sourceTree = SDKROOT; };
@@ -174,6 +178,8 @@
 				D080E9D82E0144180022A6AA /* PermissionCoordinator.swift */,
 				D080E9DA2E01442E0022A6AA /* PermissionGateView.swift */,
 				D03FC1F72E30E7CF007827AC /* Colors.swift */,
+				D03FC1F92E316B61007827AC /* CloudKitCacheModels.swift */,
+				D03FC1FB2E316B74007827AC /* CloudKitCacheStore.swift */,
 				4AB0FF8B2D47619600A3CD5C /* Assets.xcassets */,
 				4AB0FF902D47619600A3CD5C /* RemoVision.entitlements */,
 				D080E9D42E003B320022A6AA /* InfoPlist.strings */,
@@ -353,6 +359,7 @@
 			files = (
 				D080E9DB2E01442E0022A6AA /* PermissionGateView.swift in Sources */,
 				D03FC1F82E30E7CF007827AC /* Colors.swift in Sources */,
+				D03FC1FA2E316B61007827AC /* CloudKitCacheModels.swift in Sources */,
 				4AE98C8F2D50E12900CFA135 /* RemindersManager.swift in Sources */,
 				4AE98C9D2D50E1EA00CFA135 /* CameraManager.swift in Sources */,
 				D000C99F2DCF6FEB004E47C8 /* AcceptShareSheet.swift in Sources */,
@@ -375,6 +382,7 @@
 				D080E9D92E0144180022A6AA /* PermissionCoordinator.swift in Sources */,
 				D000C9972DCF0AF2004E47C8 /* CloudKitService.swift in Sources */,
 				D000C99B2DCF4A7B004E47C8 /* GroupCreationSheet.swift in Sources */,
+				D03FC1FC2E316B74007827AC /* CloudKitCacheStore.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

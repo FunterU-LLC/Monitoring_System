@@ -54,17 +54,14 @@ final class PermissionCoordinator: NSObject {
     }
 
     private func recheckReminders() {
-        // 新しいEKEventStoreインスタンスを作成して最新の状態を取得
         let freshEventStore = EKEventStore()
         
         #if compiler(>=5.9)
-        // iOS 17 / macOS 14以降の新しいAPI
         Task { @MainActor in
             do {
                 let status = try await freshEventStore.requestFullAccessToReminders()
                 remindersStatus = status ? .granted : .denied
             } catch {
-                // エラーの場合は従来の方法で確認
                 checkRemindersLegacy()
             }
         }

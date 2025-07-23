@@ -203,6 +203,29 @@ struct ContentView: View {
                                 focusedButton = .cameraTest
                             }
                         }
+                        #if DEBUG
+                        Button("全データをリセット") {
+                            let alert = NSAlert()
+                            alert.messageText = "全データをリセットしますか？"
+                            alert.informativeText = "この操作により、以下のデータがすべて削除されます：\n• ローカルに保存されたセッションデータ\n• CloudKitのキャッシュデータ\n• グループ情報\n• すべての設定\n\nこの操作は取り消せません。"
+                            alert.addButton(withTitle: "リセットする")
+                            alert.addButton(withTitle: "キャンセル")
+                            alert.alertStyle = .critical
+                            
+                            if let button = alert.buttons.first {
+                                button.hasDestructiveAction = true
+                            }
+                            
+                            if alert.runModal() == .alertFirstButtonReturn {
+                                Task {
+                                    await resetAllData()
+                                }
+                            }
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(.red)
+                        .padding(.bottom, 8)
+                        #endif
                     }
                     Spacer().frame(height: 12)
                 }
@@ -220,12 +243,7 @@ struct ContentView: View {
             .task {
                 showOnboarding = true
                 
-                // GroupIDはあるがGroupInfoがない場合、CloudKitから再取得を試みる
                 if !currentGroupID.isEmpty && groupInfoStore.groupInfo == nil {
-                    #if DEBUG
-                    print("⚠️ GroupIDはあるがGroupInfoがない。CloudKitから再取得を試みます...")
-                    #endif
-                    
                     await fetchGroupInfoFromCloudKit(groupID: currentGroupID)
                 }
             }
@@ -263,9 +281,7 @@ struct ContentView: View {
         .overlay(
             Group {
                 if let info = groupInfoStore.groupInfo {
-                    // パネル（独立したoverlay）
                     if showGroupDetail {
-                        // 背景の透明なタップ検知エリア
                         Color.clear
                             .contentShape(Rectangle())
                             .onTapGesture {
@@ -297,7 +313,7 @@ struct ContentView: View {
                                 ))
                                 .offset(y: -80)
                                 .onTapGesture {
-                                    // パネル自体のタップは何もしない（イベントの伝播を止める）
+                                    
                                 }
                                 
                                 Spacer()
@@ -312,7 +328,6 @@ struct ContentView: View {
         .overlay(
             Group {
                 if let info = groupInfoStore.groupInfo {
-                    // ボタン（独立したoverlay、常に固定位置）
                     VStack {
                         Spacer()
                         
@@ -331,96 +346,39 @@ struct ContentView: View {
                 }
             }
         )
-        .onAppear {
-            #if DEBUG
-            print("===== ContentView onAppear =====")
-            print("groupInfoStore.groupInfo != nil: \(groupInfoStore.groupInfo != nil)")
-            if let info = groupInfoStore.groupInfo {
-                print("グループ名: \(info.groupName)")
-                print("オーナー名: \(info.ownerName)")
-                print("レコードID: \(info.recordID)")
-            } else {
-                print("グループ情報なし")
-            }
-            print("currentGroupID: \(currentGroupID)")
-            print("userName: \(userName)")
-            print("================================")
-            #endif
-        }
-        .onChange(of: groupInfoStore.groupInfo) { oldValue, newValue in
-            #if DEBUG
-            print("===== GroupInfo Changed =====")
-            print("Old value != nil: \(oldValue != nil)")
-            print("New value != nil: \(newValue != nil)")
-            if let info = newValue {
-                print("新しいグループ名: \(info.groupName)")
-                print("新しいオーナー名: \(info.ownerName)")
-                print("新しいレコードID: \(info.recordID)")
-            } else {
-                print("グループ情報がクリアされました")
-            }
-            print("=============================")
-            #endif
-        }
     }
-
-        // ContentView構造体内に以下のメソッドを追加
-        private func fetchGroupInfoFromCloudKit(groupID: String) async {
-            let zoneID = CloudKitService.workZoneID
-            let groupRecordID = CKRecord.ID(recordName: groupID, zoneID: zoneID)
-            let db = CKContainer.default().privateCloudDatabase
+    
+    private func fetchGroupInfoFromCloudKit(groupID: String) async {
+        let zoneID = CloudKitService.workZoneID
+        let groupRecordID = CKRecord.ID(recordName: groupID, zoneID: zoneID)
+        let db = CKContainer.default().privateCloudDatabase
+        
+        do {
+            let record = try await db.record(for: groupRecordID)
             
-            do {
-                let record = try await db.record(for: groupRecordID)
+            let groupName = record["groupName"] as? String ?? "Unknown Group"
+            let ownerName = record["ownerName"] as? String ?? "Unknown Owner"
+            
+            await MainActor.run {
+                GroupInfoStore.shared.groupInfo = GroupInfo(
+                    groupName: groupName,
+                    ownerName: ownerName,
+                    recordID: groupID
+                )
+            }
+        } catch {
+            await MainActor.run {
+                currentGroupID = ""
+                userName = ""
                 
-                let groupName = record["groupName"] as? String ?? "Unknown Group"
-                let ownerName = record["ownerName"] as? String ?? "Unknown Owner"
-                
-                await MainActor.run {
-                    GroupInfoStore.shared.groupInfo = GroupInfo(
-                        groupName: groupName,
-                        ownerName: ownerName,
-                        recordID: groupID
-                    )
-                    
-                    #if DEBUG
-                    print("✅ CloudKitからグループ情報を復元しました")
-                    print("グループ名: \(groupName)")
-                    print("オーナー名: \(ownerName)")
-                    #endif
-                }
-            } catch {
-                #if DEBUG
-                print("❌ CloudKitからの取得に失敗: \(error)")
-                #endif
-                
-                // 取得に失敗した場合はリセット
-                await MainActor.run {
-                    currentGroupID = ""
-                    userName = ""
-                    
-                    let alert = NSAlert()
-                    alert.messageText = "グループ情報の取得に失敗"
-                    alert.informativeText = "グループ情報を取得できませんでした。再度グループに参加してください。"
-                    alert.alertStyle = .warning
-                    alert.addButton(withTitle: "OK")
-                    alert.runModal()
-                }
+                let alert = NSAlert()
+                alert.messageText = "グループ情報の取得に失敗"
+                alert.informativeText = "グループ情報を取得できませんでした。再度グループに参加してください。"
+                alert.alertStyle = .warning
+                alert.addButton(withTitle: "OK")
+                alert.runModal()
             }
         }
-    
-    func shareGroupURL(_ urlString: String) {
-        #if os(macOS)
-        if let url = URL(string: urlString),
-           let window = NSApp.keyWindow ?? NSApplication.shared.windows.first {
-            let picker = NSSharingServicePicker(items: [url])
-            picker.show(
-                relativeTo: .zero,
-                of: window.contentView!,
-                preferredEdge: .maxY
-            )
-        }
-        #endif
     }
     
     private func handleKeyDown(_ event: NSEvent) {
@@ -455,6 +413,115 @@ struct ContentView: View {
         }
         showManagement = true
     }
+    
+    private func resetAllData() async {
+        let groupInfo = GroupInfoStore.shared.groupInfo
+        let isOwner = groupInfo?.ownerName == userName
+        
+        let alert = NSAlert()
+        alert.messageText = "全データをリセットしますか？"
+        
+        var infoText = "この操作により、以下のデータがすべて削除されます：\n• ローカルに保存されたセッションデータ\n• CloudKitのキャッシュデータ\n• グループ情報\n• すべての設定\n"
+        
+        if !currentGroupID.isEmpty && !userName.isEmpty {
+            infoText += "\n• CloudKit上の自分のデータ"
+            
+            if isOwner {
+                infoText += "\n• グループ全体（あなたがオーナーのため）"
+            }
+        }
+        
+        infoText += "\n\nこの操作は取り消せません。"
+        
+        alert.informativeText = infoText
+        alert.addButton(withTitle: "リセットする")
+        alert.addButton(withTitle: "キャンセル")
+        alert.alertStyle = .critical
+        
+        if let button = alert.buttons.first {
+            button.hasDestructiveAction = true
+        }
+        
+        if alert.runModal() == .alertFirstButtonReturn {
+            Task {
+                var cloudKitError: String? = nil
+                
+                if !currentGroupID.isEmpty && !userName.isEmpty {
+                    do {
+                        if isOwner {
+                            let deleted = try await CloudKitService.shared.deleteGroupIfOwner(
+                                groupID: currentGroupID,
+                                ownerName: groupInfo?.ownerName ?? "",
+                                currentUserName: userName
+                            )
+                            if !deleted {
+                                try await CloudKitService.shared.deleteMyDataFromCloudKit(
+                                    groupID: currentGroupID,
+                                    userName: userName
+                                )
+                            }
+                        } else {
+                            try await CloudKitService.shared.deleteMyDataFromCloudKit(
+                                groupID: currentGroupID,
+                                userName: userName
+                            )
+                        }
+                    } catch {
+                        cloudKitError = error.localizedDescription
+                    }
+                }
+                
+                await SessionDataStore.shared.wipeAllPersistentData()
+                
+                await CloudKitCacheStore.shared.clearAllCache()
+                
+                CloudKitService.shared.clearTemporaryStorage()
+                
+                let domain = Bundle.main.bundleIdentifier!
+                UserDefaults.standard.removePersistentDomain(forName: domain)
+                UserDefaults.standard.synchronize()
+                
+                if let groupsURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: domain) {
+                    try? FileManager.default.removeItem(at: groupsURL)
+                }
+                
+                let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
+                if let contents = try? FileManager.default.contentsOfDirectory(at: documentsURL, includingPropertiesForKeys: nil) {
+                    for fileURL in contents {
+                        try? FileManager.default.removeItem(at: fileURL)
+                    }
+                }
+                
+                let cacheURL = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
+                if let contents = try? FileManager.default.contentsOfDirectory(at: cacheURL, includingPropertiesForKeys: nil) {
+                    for fileURL in contents {
+                        try? FileManager.default.removeItem(at: fileURL)
+                    }
+                }
+                
+                await MainActor.run {
+                    if let error = cloudKitError {
+                        let errorAlert = NSAlert()
+                        errorAlert.messageText = "CloudKitデータの削除中にエラーが発生しました"
+                        errorAlert.informativeText = error
+                        errorAlert.alertStyle = .warning
+                        errorAlert.addButton(withTitle: "OK")
+                        errorAlert.runModal()
+                    }
+                    
+                    GroupInfoStore.shared.groupInfo = nil
+                    currentGroupID = ""
+                    userName = ""
+                    
+                    UserDefaults.standard.set("", forKey: "currentGroupID")
+                    UserDefaults.standard.set("", forKey: "userName")
+                    UserDefaults.standard.synchronize()
+                    
+                    permissionCoordinator.recheckAll()
+                }
+            }
+        }
+    }
 }
 
 struct GroupInfoFloatingButton: View {
@@ -463,8 +530,8 @@ struct GroupInfoFloatingButton: View {
     @Binding var isExpanded: Bool
     @State private var isHovering = false
     
-    @State private var copySuccess = false  // ローカル状態として追加
-    @State private var showShareMenu = false  // ローカル状態として追加
+    @State private var copySuccess = false
+    @State private var showShareMenu = false
     
     var body: some View {
         Button {
@@ -557,11 +624,9 @@ struct GroupDetailPanel: View {
     @AppStorage("userName") private var storedUserName = ""
     
     private var shareURL: String {
-        // 実際のCKShare URLがあればそれを使用
         if let actualURL = actualShareURL {
             return actualURL
         }
-        // なければカスタムURL（フォールバック）
         return "monitoringsystem://share/\(groupInfo.recordID)"
     }
     
@@ -589,7 +654,6 @@ struct GroupDetailPanel: View {
                         Text(groupInfo.groupName)
                             .font(.system(size: 18, weight: .semibold))
                         
-                        // オーナー以外の場合のみオーナー名を表示
                         if userName != groupInfo.ownerName {
                             HStack(spacing: 4) {
                                 Text("オーナー名：")
@@ -618,22 +682,19 @@ struct GroupDetailPanel: View {
             Divider()
             
             VStack(alignment: .leading, spacing: 16) {
-                // オーナーかどうかで表示を変更
                 if userName == groupInfo.ownerName {
-                    // GroupDetailPanel内のInfoRow呼び出し部分を修正
                     InfoRow(
                         icon: "crown.fill",
                         title: "あなたのユーザー名（オーナー）",
                         value: userName,
-                        color: Color(red: 255/255, green: 204/255, blue: 102/255)  // オレンジに変更
+                        color: Color(red: 255/255, green: 204/255, blue: 102/255)
                     )
                 } else {
-                    // 通常メンバーの場合
                     InfoRow(
                         icon: "person.fill",
                         title: "あなたのユーザー名",
                         value: userName,
-                        color: Color(red: 255/255, green: 184/255, blue: 77/255)  // 少し濃いオレンジに変更
+                        color: Color(red: 255/255, green: 184/255, blue: 77/255)
                     )
                 }
             }
@@ -795,7 +856,7 @@ struct GroupDetailPanel: View {
             }
         )
     }
-    // 実際のCKShare URLを取得
+    
     private func fetchActualShareURL() {
         isLoadingShareURL = true
         
@@ -805,10 +866,8 @@ struct GroupDetailPanel: View {
             let db = CKContainer.default().privateCloudDatabase
             
             do {
-                // グループレコードを取得
                 let groupRecord = try await db.record(for: recordID)
                 
-                // グループレコードに関連付けられたCKShareを取得
                 if let shareReference = groupRecord.share {
                     do {
                         let shareRecord = try await db.record(for: shareReference.recordID)
@@ -817,35 +876,21 @@ struct GroupDetailPanel: View {
                             await MainActor.run {
                                 actualShareURL = share.url?.absoluteString
                                 isLoadingShareURL = false
-                                
-                                #if DEBUG
-                                print("✅ 実際のCKShare URL取得: \(actualShareURL ?? "nil")")
-                                #endif
                             }
                         }
                     } catch {
-                        #if DEBUG
-                        print("⚠️ CKShare参照は存在するが取得できない: \(error)")
-                        #endif
                         await MainActor.run {
                             isLoadingShareURL = false
                         }
                     }
                 } else {
-                    // shareReferenceがない場合、シンプルにカスタムURLを使用
                     await MainActor.run {
                         isLoadingShareURL = false
-                        #if DEBUG
-                        print("⚠️ グループレコードにCKShare参照がありません")
-                        #endif
                     }
                 }
             } catch {
                 await MainActor.run {
                     isLoadingShareURL = false
-                    #if DEBUG
-                    print("❌ グループレコード取得エラー: \(error)")
-                    #endif
                 }
             }
         }
@@ -896,12 +941,10 @@ struct ShareButton: View {
                let window = NSApp.keyWindow ?? NSApplication.shared.windows.first {
                 let picker = NSSharingServicePicker(items: [shareURL])
                 
-                // パネルの右端の中央位置を計算
                 let windowFrame = window.frame
                 let panelRightX = panelFrame.maxX - windowFrame.origin.x
                 let panelCenterY = panelFrame.midY - windowFrame.origin.y
                 
-                // パネルの右側に小さな矩形を作成
                 let rect = NSRect(
                     x: panelRightX + 10,
                     y: panelCenterY - 1,
@@ -909,7 +952,6 @@ struct ShareButton: View {
                     height: 2
                 )
                 
-                // パネルの右側（minX）に表示
                 picker.show(
                     relativeTo: rect,
                     of: window.contentView!,

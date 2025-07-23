@@ -14,7 +14,6 @@ struct FinishTaskPopupView: View {
     
     @State private var tasksToFinish: [TaskItem] = []
     @State private var completedTasks: Set<String> = []
-//    @State private var comments: [String: String] = [:]
     
     @State private var currentIndex: Int = 0
     @State private var pressedIndex: Int? = nil
@@ -38,14 +37,12 @@ struct FinishTaskPopupView: View {
                 VStack(alignment: .leading, spacing: 0) {
                     ForEach(hierarchicalTasks, id: \.id) { hierarchicalTask in
                         VStack(alignment: .leading, spacing: 0) {
-                            // 親タスクまたは独立したタスク
                             hierarchicalTaskRow(
                                 task: hierarchicalTask.task,
                                 isParent: hierarchicalTask.isParent,
                                 children: hierarchicalTask.children
                             )
                             
-                            // 子タスク（展開されている場合のみ）
                             if hierarchicalTask.isParent && expandedParents.contains(hierarchicalTask.id) {
                                 ForEach(hierarchicalTask.children) { childTask in
                                     hierarchicalTaskRow(
@@ -61,7 +58,6 @@ struct FinishTaskPopupView: View {
                 }
                 .animation(.easeInOut(duration: 0.3), value: expandedParents)
                 .onTapGesture {
-                    // 背景タップでフォーカスを解除
                     if focusedTaskId != nil {
                         focusedTaskId = nil
                     }
@@ -82,46 +78,70 @@ struct FinishTaskPopupView: View {
                     let totalRecognized = faceRecognitionManager.endRecognitionSession()
                     let usageDict = appUsageManager.snapshotRecognizedUsage()
 
-                    // 親タスクを除外して子タスクのみをカウント
-                    let childTasks = tasksToFinish.filter { !$0.title.hasPrefix("&") }
+                    let (parentWithChildren, standaloneParents) = analyzeTaskStructure(tasksToFinish)
+
+                    let childTasks = tasksToFinish.filter { task in
+                        !task.title.hasPrefix("&") || standaloneParents.contains(task.id)
+                    }
                     let perTaskSeconds: Double = {
-                        if childTasks.isEmpty { 0 } else { totalRecognized / Double(childTasks.count) }
+                        if childTasks.isEmpty {
+                            return 0
+                        } else {
+                            return totalRecognized / Double(childTasks.count)
+                        }
                     }()
+
                     let now = Date()
-                    let summaries: [TaskUsageSummary] = tasksToFinish.map { task in
+                    var currentParentName: String? = nil
+
+                    let summaries: [TaskUsageSummary] = tasksToFinish.compactMap { task in
+                        if task.title.hasPrefix("&") && parentWithChildren.contains(task.id) {
+                            currentParentName = String(task.title.dropFirst())
+                            return nil
+                        }
+                        
+                        if task.title.hasPrefix("&") && standaloneParents.contains(task.id) {
+                            currentParentName = nil
+                        }
+                        
                         let isDone = completedTasks.contains(task.id)
                         let note = taskComments[task.id]
                         
-                        // 親タスクの場合は時間を0に
-                        let isParentTask = task.title.hasPrefix("&")
-                        let taskSeconds = isParentTask ? 0 : perTaskSeconds
+                        let taskName = task.title.hasPrefix("&") ? String(task.title.dropFirst()) : task.title
+                        
+                        let taskSeconds = perTaskSeconds
                         let st = now.addingTimeInterval(-taskSeconds)
                         
                         let apps: [AppUsage] = {
-                            if isParentTask {
-                                return [] // 親タスクにはアプリ使用状況を記録しない
-                            } else if usageDict.isEmpty {
+                            if usageDict.isEmpty {
                                 return appUsageManager.currentRecognizedAppUsageArray()
                                     .map { AppUsage(name: $0.name, seconds: $0.seconds / Double(max(childTasks.count, 1))) }
                             } else {
                                 return usageDict.map { AppUsage(name: $0.key, seconds: $0.value / Double(max(childTasks.count, 1))) }
                             }
                         }()
-
+                        
                         let totalSec = apps.reduce(0) { $0 + $1.seconds }
-
-                        return TaskUsageSummary(reminderId: task.id,
-                                                taskName:   task.title,
-                                                isCompleted: isDone,
-                                                startTime:   st,
-                                                endTime:     now,
-                                                totalSeconds: totalSec,
-                                                comment:      note,
-                                                appBreakdown: apps)
+                        
+                        return TaskUsageSummary(
+                            reminderId: task.id,
+                            taskName: taskName,
+                            isCompleted: isDone,
+                            startTime: st,
+                            endTime: now,
+                            totalSeconds: totalSec,
+                            comment: note,
+                            appBreakdown: apps,
+                            parentTaskName: task.title.hasPrefix("&") ? nil : currentParentName
+                        )
                     }
                     
+                    
                     Task {
-                        let actualCompletedCount = summaries.filter { $0.isCompleted }.count
+                        let actualCompletedCount = summaries.filter { summary in
+                            summary.isCompleted
+                        }.count
+                        
                         let sessionRecord = createSessionRecord(summaries: summaries, completedCount: actualCompletedCount)
                         await uploadToCloudKit(sessionRecord: sessionRecord)
                     }
@@ -129,9 +149,13 @@ struct FinishTaskPopupView: View {
                     appUsageManager.clearRecognizedUsage()
 
                     for task in tasksToFinish {
-                        if let note = taskComments[task.id], !note.isEmpty {
-                            remindersManager.updateTask(task, completed: false, notes: note)
+                        if task.title.hasPrefix("&") && parentWithChildren.contains(task.id) {
+                            continue
                         }
+                        
+                        let isDone = completedTasks.contains(task.id)
+                        let note = taskComments[task.id]
+                        remindersManager.updateTask(task, completed: isDone, notes: note)
                     }
 
                     faceRecognitionManager.stopCamera()
@@ -162,78 +186,86 @@ struct FinishTaskPopupView: View {
                     appUsageManager.recognizedAppUsageFunc()
                     appUsageManager.saveCurrentUsageToDataStore()
                     
-                    for task in tasksToFinish {
-                        let isDone = completedTasks.contains(task.id)
-                        let note   = taskComments[task.id]
-                        remindersManager.updateTask(task, completed: isDone, notes: note)
-                    }
                     
                     faceRecognitionManager.stopCamera()
                     
-                    // 親タスクを除外して子タスクのみをカウント
-                    let childTasks = tasksToFinish.filter { !$0.title.hasPrefix("&") }
+                    let (parentWithChildren, standaloneParents) = analyzeTaskStructure(tasksToFinish)
+
+                    let childTasks = tasksToFinish.filter { task in
+                        !task.title.hasPrefix("&") || standaloneParents.contains(task.id)
+                    }
                     let perTaskSeconds: Double = {
                         if childTasks.isEmpty {
                             return 0
-                        } else if totalRecognized > 0 {
-                            return totalRecognized / Double(childTasks.count)
                         } else {
-                            return totalAppSeconds / Double(childTasks.count)
+                            return totalRecognized / Double(childTasks.count)
                         }
                     }()
 
                     let now = Date()
-                    let summaries: [TaskUsageSummary] = tasksToFinish.map { task in
+                    var currentParentName: String? = nil
+
+                    let summaries: [TaskUsageSummary] = tasksToFinish.compactMap { task in
+                        if task.title.hasPrefix("&") && parentWithChildren.contains(task.id) {
+                            currentParentName = String(task.title.dropFirst())
+                            return nil
+                        }
+                        
+                        if task.title.hasPrefix("&") && standaloneParents.contains(task.id) {
+                            currentParentName = nil
+                        }
+                        
                         let isDone = completedTasks.contains(task.id)
                         let note = taskComments[task.id]
                         
-                        // 親タスクの場合は時間を0に
-                        let isParentTask = task.title.hasPrefix("&")
-                        let taskSeconds = isParentTask ? 0 : perTaskSeconds
-                        let start = now.addingTimeInterval(-taskSeconds)
+                        let taskName = task.title.hasPrefix("&") ? String(task.title.dropFirst()) : task.title
+                        
+                        let taskSeconds = perTaskSeconds
+                        let st = now.addingTimeInterval(-taskSeconds)
                         
                         let apps: [AppUsage] = {
-                            if isParentTask {
-                                return [] // 親タスクにはアプリ使用状況を記録しない
-                            } else if !usageDict.isEmpty {
-                                return usageDict.map { name, sec in
-                                    let seconds: Double
-                                    if totalRecognized > 0 && totalAppSeconds > 0 {
-                                        seconds = (sec / totalAppSeconds) * perTaskSeconds
-                                    } else {
-                                        seconds = sec / Double(max(childTasks.count, 1))
-                                    }
-                                    return AppUsage(name: name, seconds: seconds)
-                                }
+                            if usageDict.isEmpty {
+                                return appUsageManager.currentRecognizedAppUsageArray()
+                                    .map { AppUsage(name: $0.name, seconds: $0.seconds / Double(max(childTasks.count, 1))) }
                             } else {
-                                let current = appUsageManager.currentRecognizedAppUsageArray()
-                                return current.map { app in
-                                    AppUsage(name: app.name,
-                                             seconds: app.seconds / Double(max(childTasks.count, 1)))
-                                }
+                                return usageDict.map { AppUsage(name: $0.key, seconds: $0.value / Double(max(childTasks.count, 1))) }
                             }
                         }()
-
+                        
                         let totalSec = apps.reduce(0) { $0 + $1.seconds }
-
+                        
                         return TaskUsageSummary(
-                            reminderId:  task.id,
-                            taskName:    task.title,
+                            reminderId: task.id,
+                            taskName: taskName,
                             isCompleted: isDone,
-                            startTime:   start,
-                            endTime:     now,
+                            startTime: st,
+                            endTime: now,
                             totalSeconds: totalSec,
-                            comment:      note,
-                            appBreakdown: apps
+                            comment: note,
+                            appBreakdown: apps,
+                            parentTaskName: task.title.hasPrefix("&") ? nil : currentParentName
                         )
                     }
                     
                     appUsageManager.clearRecognizedUsage()
                     
                     Task {
-                        let actualCompletedCount = summaries.filter { $0.isCompleted }.count
+                        let actualCompletedCount = summaries.filter { summary in
+                            summary.isCompleted
+                        }.count
+                        
                         let sessionRecord = createSessionRecord(summaries: summaries, completedCount: actualCompletedCount)
                         await uploadToCloudKit(sessionRecord: sessionRecord)
+                    }
+                    
+                    for task in tasksToFinish {
+                        if task.title.hasPrefix("&") && parentWithChildren.contains(task.id) {
+                            continue
+                        }
+                        
+                        let isDone = completedTasks.contains(task.id)
+                        let note = taskComments[task.id]
+                        remindersManager.updateTask(task, completed: isDone, notes: note)
                     }
                         
                     popupCoordinator.showFinishPopup = false
@@ -253,13 +285,11 @@ struct FinishTaskPopupView: View {
             .allowsHitTesting(false)
         )
 
-        // onAppearで初期化
         .onAppear {
             remindersManager.fetchTasks(for: remindersManager.selectedList) { updatedTasks in
                 DispatchQueue.main.async {
                     tasksToFinish = updatedTasks.filter { selectedTaskIds.contains($0.id) }
                     
-                    // 既存のコメントを新しい辞書にコピー
                     var newComments: [String: String] = [:]
                     for task in tasksToFinish {
                         newComments[task.id] = taskComments[task.id] ?? ""
@@ -276,6 +306,25 @@ struct FinishTaskPopupView: View {
         }
     }
     
+    private func analyzeTaskStructure(_ tasks: [TaskItem]) -> (parentWithChildren: Set<String>, standaloneParents: Set<String>) {
+        var parentWithChildren = Set<String>()
+        var standaloneParents = Set<String>()
+        
+        for (index, task) in tasks.enumerated() {
+            if task.title.hasPrefix("&") {
+                let hasChildren = (index < tasks.count - 1) && !tasks[index + 1].title.hasPrefix("&")
+                
+                if hasChildren {
+                    parentWithChildren.insert(task.id)
+                } else {
+                    standaloneParents.insert(task.id)
+                }
+            }
+        }
+        
+        return (parentWithChildren, standaloneParents)
+    }
+    
     private func createSessionRecord(summaries: [TaskUsageSummary], completedCount: Int) -> SessionRecordModel {
         let taskModels = summaries.map { summary in
             TaskUsageSummaryModel(
@@ -288,7 +337,8 @@ struct FinishTaskPopupView: View {
                 comment: summary.comment,
                 appBreakdown: summary.appBreakdown.map { app in
                     AppUsageModel(name: app.name, seconds: app.seconds)
-                }
+                },
+                parentTaskName: summary.parentTaskName
             )
         }
         
@@ -414,7 +464,6 @@ struct FinishTaskPopupView: View {
     
     private func hierarchicalTaskRow(task: TaskItem, isParent: Bool, children: [TaskItem], isChild: Bool = false) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            // 行全体をボタン化
             Button {
                 if isParent {
                     toggleParentAndChildren(task.id, children: children)
@@ -423,13 +472,11 @@ struct FinishTaskPopupView: View {
                 }
             } label: {
                 HStack(spacing: 0) {
-                    // インデント
                     if isChild {
                         Spacer()
                             .frame(width: 24)
                     }
                     
-                    // 展開/折りたたみボタン（親タスクのみ）
                     if isParent {
                         Button {
                             withAnimation(.easeInOut(duration: 0.2)) {
@@ -452,14 +499,12 @@ struct FinishTaskPopupView: View {
                             .frame(width: 20)
                     }
                     
-                    // チェックボックス
                     Image(systemName: completedTasks.contains(task.id) ? "checkmark.square.fill" : "square")
                         .symbolRenderingMode(.palette)
                         .foregroundStyle(completedTasks.contains(task.id) ? .white : .primary,
                                        completedTasks.contains(task.id) ? .blue : .clear)
                         .padding(.leading, 8)
                     
-                    // タスク内容
                     VStack(alignment: .leading) {
                         Text(isParent ? "▼ \(String(task.title.dropFirst()))" : "・\(task.title)")
                             .fontWeight(isParent ? .semibold : .regular)
@@ -482,7 +527,7 @@ struct FinishTaskPopupView: View {
                     RoundedRectangle(cornerRadius: 6)
                         .fill(isParent ? Color(red: 255/255, green: 204/255, blue: 102/255).opacity(0.1) : Color.clear)
                 )
-                .contentShape(Rectangle()) // 行全体をクリック可能にする
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .background(
@@ -499,7 +544,6 @@ struct FinishTaskPopupView: View {
             
             Divider()
             
-            // コメント入力欄（親タスク以外のみ表示）
             if !isParent {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("コメント")
@@ -507,7 +551,6 @@ struct FinishTaskPopupView: View {
                         .foregroundColor(.secondary)
                         .padding(.leading, isChild ? 44 : 0)
                     
-                    // TextFieldを使用（複数行対応）
                     TextField("コメントを入力してください(任意)", text: Binding(
                         get: { taskComments[task.id] ?? "" },
                         set: { newValue in
@@ -536,13 +579,11 @@ struct FinishTaskPopupView: View {
     
     private func toggleParentAndChildren(_ parentId: String, children: [TaskItem]) {
         if completedTasks.contains(parentId) {
-            // 親タスクとすべての子タスクのチェックを外す
             completedTasks.remove(parentId)
             for child in children {
                 completedTasks.remove(child.id)
             }
         } else {
-            // 親タスクとすべての子タスクにチェックを入れる
             completedTasks.insert(parentId)
             for child in children {
                 completedTasks.insert(child.id)
@@ -553,8 +594,6 @@ struct FinishTaskPopupView: View {
     private func toggleSelection(_ id: String) {
         if completedTasks.contains(id) {
             completedTasks.remove(id)
-            
-            // 子タスクの場合、すべての子タスクの選択が解除されたら親タスクも解除
             if let parent = findParentTask(for: id) {
                 let anyChildSelected = parent.children.contains { completedTasks.contains($0.id) }
                 if !anyChildSelected {
@@ -564,14 +603,12 @@ struct FinishTaskPopupView: View {
         } else {
             completedTasks.insert(id)
             
-            // 子タスクの場合、親タスクも自動的に選択
             if let parent = findParentTask(for: id) {
                 completedTasks.insert(parent.id)
             }
         }
     }
 
-    // 子タスクの親を探すヘルパーメソッド
     private func findParentTask(for childId: String) -> HierarchicalTask? {
         return hierarchicalTasks.first { hierarchicalTask in
             hierarchicalTask.isParent && hierarchicalTask.children.contains { $0.id == childId }

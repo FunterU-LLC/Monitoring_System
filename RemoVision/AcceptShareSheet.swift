@@ -16,7 +16,6 @@ struct AcceptShareSheet: View {
 
     var body: some View {
         ZStack {
-            // Animated gradient background - オレンジ系に変更
             LinearGradient(
                 colors: [
                     Color(red: 255/255, green: 204/255, blue: 102/255).opacity(0.15),
@@ -28,7 +27,6 @@ struct AcceptShareSheet: View {
             .ignoresSafeArea()
             
             VStack(spacing: 16) {
-                // Header with icon
                 HStack(spacing: 16) {
                     ZStack {
                         Circle()
@@ -87,7 +85,6 @@ struct AcceptShareSheet: View {
                     Spacer()
                 }
 
-                // Group information card
                 if isLoadingInfo {
                     CompactLoadingCard()
                         .transition(.scale.combined(with: .opacity))
@@ -102,8 +99,7 @@ struct AcceptShareSheet: View {
                     ))
                     .opacity(showContent ? 1 : 0)
                 }
-
-                // Error message
+                
                 if let error = errorMessage {
                     CompactErrorBanner(message: error)
                         .transition(.move(edge: .top).combined(with: .opacity))
@@ -111,7 +107,6 @@ struct AcceptShareSheet: View {
 
                 Spacer()
 
-                // Action buttons
                 HStack(spacing: 16) {
                     Button {
                         onFinish(false)
@@ -190,16 +185,13 @@ struct AcceptShareSheet: View {
         isLoadingInfo = true
         errorMessage = nil
         
-        // メタデータから直接情報を取得
         if let shareTitle = metadata.share[CKShare.SystemFieldKey.title] as? String {
             groupName = shareTitle
         }
         
-        // shareレコードからオーナー名を取得
         if let shareOwnerName = metadata.share["ownerName"] as? String {
             ownerName = shareOwnerName
         } else {
-            // フォールバック：ownerIdentityから取得
             let ownerIdentity = metadata.ownerIdentity
             if let name = ownerIdentity.nameComponents?.formatted() {
                 ownerName = name
@@ -210,10 +202,8 @@ struct AcceptShareSheet: View {
             }
         }
         
-        // rootRecordから追加情報を取得する試み
         Task {
             do {
-                // 注意: 承認前はrootRecordにアクセスできない可能性がある
                 if let rootRecord = metadata.rootRecord {
                     if let gName = rootRecord["groupName"] as? String {
                         await MainActor.run {
@@ -221,10 +211,6 @@ struct AcceptShareSheet: View {
                         }
                     }
                 }
-            } catch {
-                #if DEBUG
-                print("⚠️ rootRecord取得エラー（承認前は正常）: \(error)")
-                #endif
             }
             
             await MainActor.run {
@@ -241,24 +227,11 @@ struct AcceptShareSheet: View {
         
         Task {
             do {
-                #if DEBUG
-                print("📤 共有を承認中...")
-                #endif
-                
                 try await CloudKitService.shared.acceptShare(from: metadata)
-                
-                #if DEBUG
-                print("✅ 共有承認成功")
-                #endif
-                
                 await MainActor.run {
                     onFinish(true)
                 }
             } catch let error as CKError {
-                #if DEBUG
-                print("❌ CKError: \(error.code) - \(error.localizedDescription)")
-                #endif
-                
                 await MainActor.run {
                     withAnimation(.spring(response: 0.5)) {
                         isJoining = false
@@ -271,7 +244,6 @@ struct AcceptShareSheet: View {
                         case .permissionFailure:
                             errorMessage = "参加権限がありません"
                         case .alreadyShared:
-                            // すでに参加している場合は成功として扱う
                             onFinish(true)
                             return
                         default:
@@ -279,11 +251,7 @@ struct AcceptShareSheet: View {
                         }
                     }
                 }
-            } catch {
-                #if DEBUG
-                print("❌ 予期しないエラー: \(error)")
-                #endif
-                
+            } catch {                
                 await MainActor.run {
                     withAnimation(.spring(response: 0.5)) {
                         isJoining = false
@@ -295,7 +263,6 @@ struct AcceptShareSheet: View {
     }
 }
 
-// Compact loading card
 struct CompactLoadingCard: View {
     @State private var shimmer = false
     
@@ -338,7 +305,6 @@ struct CompactLoadingCard: View {
     }
 }
 
-// Compact group info card - オレンジ系に変更
 struct CompactGroupInfoCard: View {
     let groupName: String
     let ownerName: String
@@ -387,7 +353,6 @@ struct CompactGroupInfoCard: View {
     }
 }
 
-// Compact error banner
 struct CompactErrorBanner: View {
     let message: String
     
@@ -417,7 +382,6 @@ struct CompactErrorBanner: View {
     }
 }
 
-// Update ShareInfoRow for compact design
 struct ShareInfoRow: View {
     let icon: String
     let iconColor: Color

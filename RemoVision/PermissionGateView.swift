@@ -8,7 +8,6 @@ struct PermissionGateView: View {
     
     var body: some View {
         ZStack {
-            // Background gradient - オレンジ系に変更
             LinearGradient(
                 colors: [
                     Color(red: 255/255, green: 224/255, blue: 153/255).opacity(0.1),
@@ -38,11 +37,10 @@ struct PermissionGateView: View {
             perm.recheckAll()
             updateCurrentStep()
         }
-        .frame(minWidth: 800, minHeight: 600)  // 650から800に変更
+        .frame(minWidth: 800, minHeight: 600)
         .padding(40)
     }
     
-    // Header section
     private var headerSection: some View {
         VStack(spacing: 16) {
             Image(systemName: "shield.checkered")
@@ -80,15 +78,13 @@ struct PermissionGateView: View {
         .offset(y: showPermissions ? 0 : -20)
     }
     
-    // Permission cards section
     private var permissionCardsSection: some View {
         VStack(spacing: 16) {
-            // Reminders permission
             permissionRow(
                 icon: "checklist",
                 title: "リマインダー",
                 description: "タスクの管理",
-                color: Color.appOrange,  // 統一された色に変更
+                color: Color.appOrange,
                 status: perm.remindersStatus,
                 isActive: currentStep >= 0,
                 delay: 0.0
@@ -96,12 +92,11 @@ struct PermissionGateView: View {
                 openPrefs("Reminders")
             }
             
-            // Camera permission
             permissionRow(
                 icon: "camera.fill",
                 title: "カメラ",
                 description: "在席状況の自動検知（録画機能はありません）",
-                color: Color.appOrange,  // 統一された色に変更
+                color: Color.appOrange,
                 status: perm.cameraStatus,
                 isActive: currentStep >= 1,
                 delay: 0.1
@@ -109,12 +104,11 @@ struct PermissionGateView: View {
                 openPrefs("Camera")
             }
             
-            // Accessibility permission
             permissionRow(
                 icon: "accessibility",
                 title: "アクセシビリティ",
                 description: "アプリ使用状況の記録",
-                color: Color.appOrange,  // 統一された色に変更
+                color: Color.appOrange,
                 status: perm.accessibilityStatus,
                 isActive: currentStep >= 2,
                 delay: 0.2
@@ -125,7 +119,6 @@ struct PermissionGateView: View {
         .padding(.horizontal, 40)
     }
     
-    // Progress section
     private var progressSection: some View {
         let granted = countGrantedPermissions()
         let progress = Double(granted) / 3.0
@@ -137,7 +130,6 @@ struct PermissionGateView: View {
             .opacity(showPermissions ? 1 : 0)
     }
     
-    // Action section
     private var actionSection: some View {
         VStack(spacing: 16) {
             if perm.allGranted {
@@ -148,7 +140,6 @@ struct PermissionGateView: View {
         .offset(y: showPermissions ? 0 : 20)
     }
     
-    // Helper function to create permission row
     private func permissionRow(
         icon: String,
         title: String,
@@ -188,8 +179,8 @@ struct PermissionGateView: View {
     private func progressColor(for progress: Double) -> Color {
         switch progress {
         case 0: return .red
-        case 0..<0.5: return Color(red: 255/255, green: 164/255, blue: 51/255)  // オレンジ
-        case 0.5..<1: return Color(red: 255/255, green: 204/255, blue: 102/255)  // 明るいオレンジ
+        case 0..<0.5: return Color(red: 255/255, green: 164/255, blue: 51/255)
+        case 0.5..<1: return Color(red: 255/255, green: 204/255, blue: 102/255)
         default: return .green
         }
     }
@@ -222,11 +213,10 @@ struct PermissionRow: View {
     let isActive: Bool
     let action: () -> Void
     
-    @State private var isButtonHovering = false  // isHoveringから変更
+    @State private var isButtonHovering = false
     
     var body: some View {
         HStack(spacing: 20) {
-            // Icon section
             ZStack {
                 Circle()
                     .fill(
@@ -253,7 +243,6 @@ struct PermissionRow: View {
             }
             .opacity(isActive ? 1 : 0.5)
             
-            // Content section
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)
                     .font(.system(size: 18, weight: .semibold))
@@ -265,7 +254,6 @@ struct PermissionRow: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             
-            // Status section
             Group {
                 switch status {
                 case .granted:
@@ -285,20 +273,20 @@ struct PermissionRow: View {
                         .padding(.horizontal, 16)
                         .padding(.vertical, 8)
                         .background(Capsule().fill(color))
-                        .scaleEffect(isButtonHovering ? 1.05 : 1)  // ボタンのみに適用
+                        .scaleEffect(isButtonHovering ? 1.05 : 1)
                         .shadow(
                             color: isButtonHovering ? color.opacity(0.3) : color.opacity(0.1),
                             radius: isButtonHovering ? 8 : 4,
                             x: 0,
                             y: isButtonHovering ? 4 : 2
-                        )  // ボタンのみに適用
+                        )
                     }
                     .buttonStyle(.plain)
                     .onHover { hovering in
                         withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                             isButtonHovering = hovering
                         }
-                    }  // ボタンのみに適用
+                    }
                 }
             }
         }
@@ -314,13 +302,12 @@ struct PermissionRow: View {
                         )
                 )
                 .shadow(
-                    color: .black.opacity(0.05),  // 固定のシャドウに変更
+                    color: .black.opacity(0.05),
                     radius: 10,
                     x: 0,
                     y: 5
                 )
         )
-        // .scaleEffect と .onHover を削除
     }
 }
 

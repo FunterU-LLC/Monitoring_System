@@ -78,6 +78,7 @@ final class CloudKitService {
         let totalSeconds: Double
         let comment: String?
         let appBreakdown: [PortableAppUsage]
+        let parentTaskName: String?
     }
     
     struct PortableAppUsage: Codable {
@@ -121,14 +122,9 @@ final class CloudKitService {
     }
 
     enum CKServiceError: Error {
-        case notImplemented
         case recordNotFound
         case invalidZone
         case userNotFound
-        case groupNotFound
-        case encodingError
-        case memberNotFound
-        case networkUnavailable
     }
 
     private struct RecordType {
@@ -137,18 +133,6 @@ final class CloudKitService {
         static let sessionRecord = "SessionRecord"
         static let taskUsageSummary = "TaskUsageSummary"
         static let appUsage = "AppUsage"
-    }
-
-    struct GroupRecord {
-        let recordID: CKRecord.ID
-        let groupName: String
-        let ownerRecordID: CKRecord.ID
-    }
-
-    struct MemberRecord {
-        let recordID: CKRecord.ID
-        let userName: String
-        let groupRef: CKRecord.Reference
     }
 
     func createGroup(ownerName: String,
@@ -177,25 +161,14 @@ final class CloudKitService {
             op.modifyRecordsResultBlock = { result in
                 switch result {
                 case .success:
-                    // share.urlが実際のiCloud共有URL
                     if let shareURL = share.url {
-                        #if DEBUG
-                        print("✅ CKShare URL取得成功: \(shareURL)")
-                        #endif
                         cont.resume(returning: (shareURL, groupRecord.recordID.recordName))
                     } else {
-                        #if DEBUG
-                        print("❌ CKShare URLが取得できません")
-                        #endif
-                        // フォールバック：一時的にカスタムURLを使用
                         let fallbackURL = URL(string: "monitoringsystem://share/\(groupRecord.recordID.recordName)")!
                         cont.resume(returning: (fallbackURL, groupRecord.recordID.recordName))
                     }
 
                 case .failure(let error):
-                    #if DEBUG
-                    print("❌ グループ作成エラー: \(error)")
-                    #endif
                     cont.resume(throwing: error)
                 }
             }
@@ -204,52 +177,18 @@ final class CloudKitService {
     }
     
     func acceptShare(from metadata: CKShare.Metadata) async throws {
-        #if DEBUG
-        print("===== acceptShare =====")
-        print("Share ID: \(metadata.share.recordID)")
-        print("Root Record ID: \(metadata.rootRecordID)")
-        #endif
-        
         return try await withCheckedThrowingContinuation { continuation in
             let operation = CKAcceptSharesOperation(shareMetadatas: [metadata])
-            
-            operation.perShareResultBlock = { metadata, result in
-                #if DEBUG
-                switch result {
-                case .success(let share):
-                    print("✅ 個別共有承認成功: \(share.recordID)")
-                case .failure(let error):
-                    print("❌ 個別共有承認エラー: \(error)")
-                    
-                    // オーナーエラーは無視
-                    if let ckError = error as? CKError,
-                       ckError.localizedDescription.contains("owner participant") {
-                        print("ℹ️ オーナーによる承認試行 - 正常")
-                    }
-                }
-                #endif
-            }
             
             operation.acceptSharesResultBlock = { result in
                 switch result {
                 case .success:
-                    #if DEBUG
-                    print("✅ 共有承認操作完了")
-                    #endif
                     continuation.resume(returning: ())
                     
                 case .failure(let error):
-                    #if DEBUG
-                    print("❌ 共有承認操作失敗: \(error)")
-                    #endif
-                    
-                    // 特定のエラーは成功として扱う
                     if let ckError = error as? CKError {
                         switch ckError.code {
                         case .alreadyShared:
-                            #if DEBUG
-                            print("ℹ️ すでに共有済み - 成功として扱う")
-                            #endif
                             continuation.resume(returning: ())
                             return
                         default:
@@ -278,8 +217,14 @@ final class CloudKitService {
     }
     
     private func convertToPortableSession(_ session: SessionRecordModel) -> PortableSessionRecord {
-        let portableTasks = (session.taskSummaries ?? []).map { task in
-            PortableTaskUsageSummary(
+        let taskSummaries = session.taskSummaries ?? []
+        let portableTasks = taskSummaries.compactMap { task in
+            let appBreakdown = task.appBreakdown ?? []
+            let portableApps = appBreakdown.map { app in
+                PortableAppUsage(name: app.name, seconds: app.seconds)
+            }
+            
+            return PortableTaskUsageSummary(
                 reminderId: task.reminderId,
                 taskName: task.taskName,
                 isCompleted: task.isCompleted,
@@ -287,9 +232,8 @@ final class CloudKitService {
                 endTime: task.endTime,
                 totalSeconds: task.totalSeconds,
                 comment: task.comment,
-                appBreakdown: (task.appBreakdown ?? []).map { app in
-                    PortableAppUsage(name: app.name, seconds: app.seconds)
-                }
+                appBreakdown: portableApps,
+                parentTaskName: task.parentTaskName
             )
         }
         
@@ -329,6 +273,9 @@ final class CloudKitService {
             taskRecord["totalSeconds"] = task.totalSeconds as CKRecordValue
             if let comment = task.comment {
                 taskRecord["comment"] = comment as CKRecordValue
+            }
+            if let parentTaskName = task.parentTaskName {
+                taskRecord["parentTaskName"] = parentTaskName as CKRecordValue
             }
             recordsToSave.append(taskRecord)
             
@@ -523,7 +470,6 @@ final class CloudKitService {
         
         var memberNames: Set<String> = []
         
-        // 1. まずグループレコードからオーナー名を取得
         let groupRecordID = CKRecord.ID(recordName: groupID, zoneID: Self.workZoneID)
         let db = CKContainer.default().privateCloudDatabase
         
@@ -532,13 +478,8 @@ final class CloudKitService {
             if let ownerName = groupRecord["ownerName"] as? String {
                 memberNames.insert(ownerName)
             }
-        } catch {
-            #if DEBUG
-            print("⚠️ グループレコード取得エラー（オーナー名取得）: \(error)")
-            #endif
         }
         
-        // 2. 既存のメンバーレコードを取得
         let groupRef = CKRecord.Reference(recordID: groupRecordID, action: .deleteSelf)
         
         let memberPredicate = NSPredicate(format: "groupRef == %@", groupRef)
@@ -551,10 +492,8 @@ final class CloudKitService {
             record["userName"] as? String
         }
         
-        // 3. セットに追加（重複を自動的に除外）
         recordMemberNames.forEach { memberNames.insert($0) }
         
-        // 4. ソートして返す
         return Array(memberNames).sorted()
     }
     
@@ -566,6 +505,141 @@ final class CloudKitService {
         
         try await ensureZone()
         
+        let cache = await CloudKitCacheStore.shared
+        let tokenKey = "\(groupID)_\(userName)"
+        let previousToken = await cache.loadToken(for: tokenKey)
+        
+        let cachedSummaries = await cache.loadCachedSummaries(groupID: groupID, userName: userName, forDays: days)
+        
+        guard let memberID = try await findMember(groupID: groupID, userName: userName) else {
+            return (cachedSummaries, cachedSummaries.filter { $0.isCompleted }.count)
+        }
+        
+        let memberRecordID = CKRecord.ID(recordName: memberID, zoneID: Self.workZoneID)
+        let memberRef = CKRecord.Reference(recordID: memberRecordID, action: .deleteSelf)
+        
+        let calendar = Calendar.current
+        let startOfToday = calendar.startOfDay(for: Date())
+        let fromDate = calendar.date(byAdding: .day, value: -(days - 1), to: startOfToday)!
+        
+        let db = CKContainer.default().privateCloudDatabase
+        
+        let options = CKFetchRecordZoneChangesOperation.ZoneConfiguration()
+        options.previousServerChangeToken = previousToken
+        
+        let operation = CKFetchRecordZoneChangesOperation(recordZoneIDs: [Self.workZoneID], configurationsByRecordZoneID: [Self.workZoneID: options])
+        
+        var changedRecords: [CKRecord] = []
+        var newToken: CKServerChangeToken?
+        
+        operation.recordWasChangedBlock = { recordID, result in
+            switch result {
+            case .success(let record):
+                changedRecords.append(record)
+            case .failure:
+                break
+            }
+        }
+        
+        operation.recordZoneFetchResultBlock = { zoneID, result in
+            switch result {
+            case .success(let (token, _, _)):
+                newToken = token
+            case .failure:
+                break
+            }
+        }
+        
+        operation.fetchRecordZoneChangesResultBlock = { result in
+            switch result {
+            case .success:
+                break
+            case .failure(let error):
+                if let ckError = error as? CKError, ckError.code == .changeTokenExpired {
+                    newToken = nil
+                }
+            }
+        }
+        
+        operation.qualityOfService = .userInitiated
+        db.add(operation)
+        
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            operation.fetchRecordZoneChangesResultBlock = { result in
+                switch result {
+                case .success:
+                    continuation.resume()
+                case .failure(let error):
+                    if let ckError = error as? CKError, ckError.code == .changeTokenExpired {
+                        continuation.resume()
+                    } else {
+                        continuation.resume(throwing: error)
+                    }
+                }
+            }
+        }
+        
+        if let token = newToken {
+            await cache.saveToken(token, for: tokenKey)
+        } else if previousToken != nil {
+            await cache.clearCache(for: groupID, userName: userName)
+            return try await fetchUserSummariesFullSync(groupID: groupID, userName: userName, forDays: days)
+        }
+        
+        let relevantSessionRecords = changedRecords.filter { record in
+            record.recordType == RecordType.sessionRecord &&
+            record["memberRef"] as? CKRecord.Reference == memberRef &&
+            (record["endTime"] as? Date ?? Date.distantPast) >= fromDate
+        }
+        
+        var newSummaries: [TaskUsageSummary] = []
+        
+        for sessionRecord in relevantSessionRecords {
+            let sessionRef = CKRecord.Reference(recordID: sessionRecord.recordID, action: .deleteSelf)
+            let taskSummaries = try await fetchTaskSummariesForManagement(sessionRef: sessionRef)
+            newSummaries.append(contentsOf: taskSummaries)
+            
+            let sessionEndTime = sessionRecord["endTime"] as? Date ?? Date()
+            await cache.saveTaskSummaries(taskSummaries, groupID: groupID, userName: userName, sessionEndTime: sessionEndTime)
+        }
+        
+        let allSummaries = cachedSummaries + newSummaries
+        
+        var merged: [String: TaskUsageSummary] = [:]
+        var totalCompleted = 0
+        
+        for task in allSummaries {
+            let key = task.reminderId.isEmpty ? task.taskName : task.reminderId
+            
+            if var existing = merged[key] {
+                existing.totalSeconds += task.totalSeconds
+                existing.appBreakdown = mergeAppUsage(existing.appBreakdown, task.appBreakdown)
+                existing.isCompleted = existing.isCompleted || task.isCompleted
+                
+                if existing.comment?.isEmpty ?? true, let newComment = task.comment, !newComment.isEmpty {
+                    existing.comment = newComment
+                }
+                
+                if existing.parentTaskName == nil, let newParentTaskName = task.parentTaskName {
+                    existing.parentTaskName = newParentTaskName
+                }
+                
+                existing.endTime = max(existing.endTime, task.endTime)
+                existing.startTime = min(existing.startTime, task.startTime)
+                
+                merged[key] = existing
+            } else {
+                merged[key] = task
+            }
+        }
+        
+        let mergedCompletedCount = merged.values.filter { $0.isCompleted }.count
+        let sortedTasks = Array(merged.values).sorted { $0.totalSeconds > $1.totalSeconds }
+        
+        return (sortedTasks, mergedCompletedCount)
+    }
+
+    private func fetchUserSummariesFullSync(groupID: String, userName: String, forDays days: Int) async throws -> ([TaskUsageSummary], Int) {
         guard let memberID = try await findMember(groupID: groupID, userName: userName) else {
             return ([], 0)
         }
@@ -584,43 +658,49 @@ final class CloudKitService {
         let db = CKContainer.default().privateCloudDatabase
         let sessionRecords = try await performQuery(sessionQuery, in: db)
         
+        var allSummaries: [TaskUsageSummary] = []
+        let cache = await CloudKitCacheStore.shared
+        
+        for sessionRecord in sessionRecords {
+            let sessionRef = CKRecord.Reference(recordID: sessionRecord.recordID, action: .deleteSelf)
+            let taskSummaries = try await fetchTaskSummariesForManagement(sessionRef: sessionRef)
+            allSummaries.append(contentsOf: taskSummaries)
+            
+            let sessionEndTime = sessionRecord["endTime"] as? Date ?? Date()
+            await cache.saveTaskSummaries(taskSummaries, groupID: groupID, userName: userName, sessionEndTime: sessionEndTime)
+        }
+        
         var merged: [String: TaskUsageSummary] = [:]
         var totalCompleted = 0
         
-        for sessionRecord in sessionRecords {
+        for task in allSummaries {
+            let key = task.reminderId.isEmpty ? task.taskName : task.reminderId
             
-            let sessionRef = CKRecord.Reference(recordID: sessionRecord.recordID, action: .deleteSelf)
-            let taskSummaries = try await fetchTaskSummariesForManagement(sessionRef: sessionRef)
-            
-            let sessionCompletedCount = taskSummaries.filter { $0.isCompleted }.count
-            totalCompleted += sessionCompletedCount
-            
-            
-            for task in taskSummaries {
-                let key = task.reminderId.isEmpty ? task.taskName : task.reminderId
+            if var existing = merged[key] {
+                existing.totalSeconds += task.totalSeconds
+                existing.appBreakdown = mergeAppUsage(existing.appBreakdown, task.appBreakdown)
+                existing.isCompleted = existing.isCompleted || task.isCompleted
                 
-                if var existing = merged[key] {
-                    existing.totalSeconds += task.totalSeconds
-                    existing.appBreakdown = mergeAppUsage(existing.appBreakdown, task.appBreakdown)
-                    existing.isCompleted = existing.isCompleted || task.isCompleted
-                    
-                    if existing.comment?.isEmpty ?? true, let newComment = task.comment, !newComment.isEmpty {
-                        existing.comment = newComment
-                    }
-                    
-                    existing.endTime = max(existing.endTime, task.endTime)
-                    existing.startTime = min(existing.startTime, task.startTime)
-                    
-                    merged[key] = existing
-                } else {
-                    merged[key] = task
+                if existing.comment?.isEmpty ?? true, let newComment = task.comment, !newComment.isEmpty {
+                    existing.comment = newComment
                 }
+                
+                if existing.parentTaskName == nil, let newParentTaskName = task.parentTaskName {
+                    existing.parentTaskName = newParentTaskName
+                }
+                
+                existing.endTime = max(existing.endTime, task.endTime)
+                existing.startTime = min(existing.startTime, task.startTime)
+                
+                merged[key] = existing
+            } else {
+                merged[key] = task
             }
         }
         
         let mergedCompletedCount = merged.values.filter { $0.isCompleted }.count
-        
         let sortedTasks = Array(merged.values).sorted { $0.totalSeconds > $1.totalSeconds }
+        
         return (sortedTasks, mergedCompletedCount)
     }
     
@@ -640,8 +720,8 @@ final class CloudKitService {
                   let startTime = taskRecord["startTime"] as? Date,
                   let endTime = taskRecord["endTime"] as? Date,
                   let totalSeconds = taskRecord["totalSeconds"] as? Double else { continue }
-            
             let comment = taskRecord["comment"] as? String
+            let parentTaskName = taskRecord["parentTaskName"] as? String
             
             let taskRef = CKRecord.Reference(recordID: taskRecord.recordID, action: .deleteSelf)
             let appUsages = try await fetchAppUsagesForManagement(taskRef: taskRef)
@@ -654,7 +734,8 @@ final class CloudKitService {
                 endTime: endTime,
                 totalSeconds: totalSeconds,
                 comment: comment,
-                appBreakdown: appUsages
+                appBreakdown: appUsages,
+                parentTaskName: parentTaskName
             )
             tasks.append(task)
         }
@@ -764,6 +845,7 @@ final class CloudKitService {
                   let totalSeconds = taskRecord["totalSeconds"] as? Double else { continue }
             
             let comment = taskRecord["comment"] as? String
+            let parentTaskName = taskRecord["parentTaskName"] as? String
             
             let taskRef = CKRecord.Reference(recordID: taskRecord.recordID, action: .deleteSelf)
             let appUsages = try await fetchAppUsages(taskRef: taskRef)
@@ -775,7 +857,8 @@ final class CloudKitService {
                                               endTime: endTime,
                                               totalSeconds: totalSeconds,
                                               comment: comment,
-                                              appBreakdown: appUsages)
+                                              appBreakdown: appUsages,
+                                              parentTaskName: parentTaskName)
             tasks.append(task)
         }
         
@@ -821,93 +904,6 @@ final class CloudKitService {
         }
     }
 
-    func initializeCloudKitSchema() async throws {
-        try await ensureZone()
-        
-        let sampleGroupID = UUID().uuidString
-        let sampleUserName = "SchemaInitUser"
-        
-        try await createSampleMember(groupID: sampleGroupID, userName: sampleUserName)
-        
-        try await createSampleSession(groupID: sampleGroupID, userName: sampleUserName)
-    }
-
-    func setupCloudKitAndSyncPendingData() async throws {
-        
-        try await initializeCloudKitSchema()
-        
-        if isOnline {
-            await uploadPendingData()
-        } else {
-        }
-    }
-
-    private func createSampleMember(groupID: String, userName: String) async throws {
-        let groupRecordID = CKRecord.ID(recordName: groupID, zoneID: Self.workZoneID)
-        let groupRef = CKRecord.Reference(recordID: groupRecordID, action: .deleteSelf)
-        
-        let memberRecordID = CKRecord.ID(recordName: "SAMPLE_MEMBER", zoneID: Self.workZoneID)
-        let memberRecord = CKRecord(recordType: RecordType.member, recordID: memberRecordID)
-        memberRecord["userName"] = userName as CKRecordValue
-        memberRecord["groupRef"] = groupRef as CKRecordValue
-        
-        let db = CKContainer.default().privateCloudDatabase
-        
-        _ = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<CKRecord, Error>) in
-            db.save(memberRecord) { record, error in
-                if let error = error {
-                    continuation.resume(throwing: error)
-                } else if let record = record {
-                    continuation.resume(returning: record)
-                } else {
-                    continuation.resume(throwing: CKServiceError.recordNotFound)
-                }
-            }
-        }
-    }
-
-    private func createSampleSession(groupID: String, userName: String) async throws {
-        let memberID = try await createOrUpdateMember(groupID: groupID, userName: userName)
-        let memberRecordID = CKRecord.ID(recordName: memberID, zoneID: Self.workZoneID)
-        let memberRef = CKRecord.Reference(recordID: memberRecordID, action: .deleteSelf)
-        
-        var recordsToSave: [CKRecord] = []
-        
-        let sessionRecordID = CKRecord.ID(recordName: "SAMPLE_SESSION", zoneID: Self.workZoneID)
-        let sessionRecord = CKRecord(recordType: RecordType.sessionRecord, recordID: sessionRecordID)
-        sessionRecord["memberRef"] = memberRef as CKRecordValue
-        sessionRecord["endTime"] = Date() as CKRecordValue
-        sessionRecord["completedCount"] = 0 as CKRecordValue
-        recordsToSave.append(sessionRecord)
-        
-        let sessionRef = CKRecord.Reference(recordID: sessionRecordID, action: .deleteSelf)
-        
-        let taskRecordID = CKRecord.ID(recordName: "SAMPLE_TASK", zoneID: Self.workZoneID)
-        let taskRecord = CKRecord(recordType: RecordType.taskUsageSummary, recordID: taskRecordID)
-        taskRecord["sessionRef"] = sessionRef as CKRecordValue
-        taskRecord["reminderId"] = "sample" as CKRecordValue
-        taskRecord["taskName"] = "Sample Task" as CKRecordValue
-        taskRecord["isCompleted"] = false as CKRecordValue
-        taskRecord["startTime"] = Date() as CKRecordValue
-        taskRecord["endTime"] = Date() as CKRecordValue
-        taskRecord["totalSeconds"] = 0.0 as CKRecordValue
-        recordsToSave.append(taskRecord)
-        
-        let taskRef = CKRecord.Reference(recordID: taskRecordID, action: .deleteSelf)
-        
-        let appRecordID = CKRecord.ID(recordName: "SAMPLE_APP", zoneID: Self.workZoneID)
-        let appRecord = CKRecord(recordType: RecordType.appUsage, recordID: appRecordID)
-        appRecord["taskRef"] = taskRef as CKRecordValue
-        appRecord["name"] = "Sample App" as CKRecordValue
-        appRecord["seconds"] = 0.0 as CKRecordValue
-        recordsToSave.append(appRecord)
-        
-        try await uploadRecordsInBatches(recordsToSave)
-        
-        let recordIDsToDelete = recordsToSave.map { $0.recordID }
-        try await deleteRecords(recordIDsToDelete)
-    }
-
     private func deleteRecords(_ recordIDs: [CKRecord.ID]) async throws {
         let db = CKContainer.default().privateCloudDatabase
         let operation = CKModifyRecordsOperation(recordsToSave: nil, recordIDsToDelete: recordIDs)
@@ -922,47 +918,6 @@ final class CloudKitService {
                 }
             }
             db.add(operation)
-        }
-    }
-    
-    func deleteAllCloudKitData() async throws {
-        
-        let db = CKContainer.default().privateCloudDatabase
-        
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            let operation = CKModifyRecordZonesOperation(recordZonesToSave: nil,
-                                                        recordZoneIDsToDelete: [Self.workZoneID])
-            operation.modifyRecordZonesResultBlock = { result in
-                switch result {
-                case .success:
-                    continuation.resume(returning: ())
-                case .failure(let error):
-                    continuation.resume(throwing: error)
-                }
-            }
-            db.add(operation)
-        }
-        
-        try await ensureZone()
-    }
-        
-    private func deleteAllRecordsOfType(_ recordType: String) async throws {
-        let db = CKContainer.default().privateCloudDatabase
-        
-        let query = CKQuery(recordType: recordType, predicate: NSPredicate(value: true))
-        
-        do {
-            let records = try await performQuery(query, in: db)
-            
-            guard !records.isEmpty else {
-                return
-            }
-            
-            let recordIDs = records.map { $0.recordID }
-            
-            try await deleteRecordsInBatches(recordIDs)
-        } catch {
-            throw CKServiceError.encodingError
         }
     }
         
@@ -1031,6 +986,75 @@ final class CloudKitService {
             try await deleteRecordsInBatches(recordsToDelete)
         } else {
         }
+    }
+    
+    func deleteMyDataFromCloudKit(groupID: String, userName: String) async throws {
+        guard !groupID.isEmpty && !userName.isEmpty else {
+            throw CKServiceError.invalidZone
+        }
+        
+        try await deleteUserData(groupID: groupID, userName: userName)
+    }
+
+    func deleteGroupIfOwner(groupID: String, ownerName: String, currentUserName: String) async throws -> Bool {
+        guard ownerName == currentUserName else {
+            return false
+        }
+        
+        try await ensureZone()
+        
+        let groupRecordID = CKRecord.ID(recordName: groupID, zoneID: Self.workZoneID)
+        let groupRef = CKRecord.Reference(recordID: groupRecordID, action: .deleteSelf)
+        
+        let db = CKContainer.default().privateCloudDatabase
+        
+        let memberQuery = CKQuery(recordType: RecordType.member, predicate: NSPredicate(format: "groupRef == %@", groupRef))
+        let members = try await performQuery(memberQuery, in: db)
+        
+        var allRecordsToDelete: [CKRecord.ID] = []
+        
+        for member in members {
+            let memberRef = CKRecord.Reference(recordID: member.recordID, action: .deleteSelf)
+            
+            let sessionQuery = CKQuery(recordType: RecordType.sessionRecord,
+                                      predicate: NSPredicate(format: "memberRef == %@", memberRef))
+            let sessions = try await performQuery(sessionQuery, in: db)
+            
+            for session in sessions {
+                let sessionRef = CKRecord.Reference(recordID: session.recordID, action: .deleteSelf)
+                
+                let taskQuery = CKQuery(recordType: RecordType.taskUsageSummary,
+                                       predicate: NSPredicate(format: "sessionRef == %@", sessionRef))
+                let tasks = try await performQuery(taskQuery, in: db)
+                
+                for task in tasks {
+                    let taskRef = CKRecord.Reference(recordID: task.recordID, action: .deleteSelf)
+                    
+                    let appQuery = CKQuery(recordType: RecordType.appUsage,
+                                          predicate: NSPredicate(format: "taskRef == %@", taskRef))
+                    let apps = try await performQuery(appQuery, in: db)
+                    
+                    allRecordsToDelete.append(contentsOf: apps.map { $0.recordID })
+                    allRecordsToDelete.append(task.recordID)
+                }
+                allRecordsToDelete.append(session.recordID)
+            }
+            allRecordsToDelete.append(member.recordID)
+        }
+        
+        let shareQuery = CKQuery(recordType: "cloudkit.share",
+                               predicate: NSPredicate(format: "recordID == %@", groupRecordID))
+        if let shares = try? await performQuery(shareQuery, in: db) {
+            allRecordsToDelete.append(contentsOf: shares.map { $0.recordID })
+        }
+        
+        allRecordsToDelete.append(groupRecordID)
+        
+        if !allRecordsToDelete.isEmpty {
+            try await deleteRecordsInBatches(allRecordsToDelete)
+        }
+        
+        return true
     }
 
     func clearTemporaryStorage() {

@@ -16,11 +16,9 @@ struct OnboardingView: View {
         FloatingCircle(relativeX: 0.9, relativeY: 0.8, size: 90, animationDuration: 4.5, animationDelay: 1.5),
         FloatingCircle(relativeX: 0.5, relativeY: 0.5, size: 70, animationDuration: 6.0, animationDelay: 2.0)
     ]
-    @State private var currentGeometrySize: CGSize = .zero
     
     var body: some View {
         ZStack {
-            // Animated gradient background - オレンジ系に変更
             LinearGradient(
                 colors: [
                     Color(red: 255/255, green: 224/255, blue: 153/255).opacity(0.15),
@@ -37,7 +35,6 @@ struct OnboardingView: View {
                 }
             }
             
-            // Floating background elements
             GeometryReader { geometry in
                 ForEach(floatingCircles.indices, id: \.self) { index in
                     Circle()
@@ -68,12 +65,10 @@ struct OnboardingView: View {
                         }
                 }
             }
-            .drawingGroup() // パフォーマンス最適化
+            .drawingGroup()
             
-            VStack(spacing: 30) {  // 40から30に削減
-                // Logo and title section
-                VStack(spacing: 20) {  // 24から20に削減
-                    // アプリアイコンの表示
+            VStack(spacing: 30) {
+                VStack(spacing: 20) {
                     if let appIcon = NSImage(named: "AppIcon") {
                         Image(nsImage: appIcon)
                             .resizable()
@@ -82,7 +77,6 @@ struct OnboardingView: View {
                             .clipShape(RoundedRectangle(cornerRadius: 20))
                             .shadow(color: Color(red: 255/255, green: 204/255, blue: 102/255).opacity(0.5), radius: 20, x: 0, y: 10)
                     } else {
-                        // フォールバック: アプリアイコンが見つからない場合
                         ZStack {
                             Circle()
                                 .fill(
@@ -110,9 +104,9 @@ struct OnboardingView: View {
                         }
                     }
                     
-                    VStack(spacing: 6) {  // 8から6に削減
+                    VStack(spacing: 6) {
                         Text("RemoVision")
-                            .font(.system(size: 42, weight: .bold, design: .rounded))  // 48から42に縮小
+                            .font(.system(size: 42, weight: .bold, design: .rounded))
                             .foregroundStyle(
                                 LinearGradient(
                                     colors: [
@@ -125,15 +119,14 @@ struct OnboardingView: View {
                             )
                         
                         Text("チームの生産性を可視化")
-                            .font(.system(size: 18, weight: .medium))  // 20から18に縮小
+                            .font(.system(size: 18, weight: .medium))
                             .foregroundColor(.secondary)
                     }
                     .opacity(showContent ? 1 : 0)
                     .offset(y: showContent ? 0 : 20)
                 }
                 
-                // Feature cards - オレンジの濃淡で統一
-                HStack(spacing: 15) {  // 20から15に削減
+                HStack(spacing: 15) {
                     FeatureCard(
                         icon: "person.3.fill",
                         title: "チーム管理",
@@ -158,7 +151,6 @@ struct OnboardingView: View {
                 .opacity(showContent ? 1 : 0)
                 .offset(y: showContent ? 0 : 40)
                 
-                // Action section
                 VStack(spacing: 14) {
                     Text("始めましょう")
                         .font(.system(size: 22, weight: .semibold))
@@ -193,20 +185,20 @@ struct OnboardingView: View {
                             )
                         )
                         .cornerRadius(12)
-                        .shadow(color: buttonHovering ? Color(red: 255/255, green: 204/255, blue: 102/255).opacity(0.5) : Color(red: 255/255, green: 204/255, blue: 102/255).opacity(0.4), radius: buttonHovering ? 15 : 10, x: 0, y: buttonHovering ? 8 : 5)  // 変更
-                        .scaleEffect(buttonHovering ? 1.05 : 1)  // 追加
+                        .shadow(color: buttonHovering ? Color(red: 255/255, green: 204/255, blue: 102/255).opacity(0.5) : Color(red: 255/255, green: 204/255, blue: 102/255).opacity(0.4), radius: buttonHovering ? 15 : 10, x: 0, y: buttonHovering ? 8 : 5)
+                        .scaleEffect(buttonHovering ? 1.05 : 1)
                     }
                     .buttonStyle(.plain)
                     .scaleEffect(showContent ? 1 : 0.9)
                     .opacity(showContent ? 1 : 0)
-                    .onHover { hovering in  // 追加
+                    .onHover { hovering in
                         withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                             buttonHovering = hovering
                         }
                     }
                 }
             }
-            .frame(minWidth: 650, minHeight: 600)  // 800から650に変更
+            .frame(minWidth: 650, minHeight: 600)
             .sheet(isPresented: $showSheet) {
                 GroupCreationSheet()
             }
@@ -228,7 +220,6 @@ struct FeatureCard: View {
     let title: String
     let description: String
     let color: Color
-    // @State private var isHovering = false  // 削除
     
     var body: some View {
         VStack(spacing: 14) {
@@ -256,7 +247,6 @@ struct FeatureCard: View {
                         )
                     )
             }
-            // .scaleEffect(isHovering ? 1.1 : 1)  // 削除
             
             VStack(spacing: 6) {
                 Text(title)
@@ -281,8 +271,8 @@ struct FeatureCard: View {
                         .strokeBorder(
                             LinearGradient(
                                 colors: [
-                                    color.opacity(0.2),  // 固定値に変更
-                                    color.opacity(0.1)   // 固定値に変更
+                                    color.opacity(0.2),
+                                    color.opacity(0.1)
                                 ],
                                 startPoint: .topLeading,
                                 endPoint: .bottomTrailing
@@ -291,8 +281,8 @@ struct FeatureCard: View {
                         )
                 )
                 .shadow(
-                    color: color.opacity(0.1),  // 固定値に変更
-                    radius: 10,                 // 固定値に変更
+                    color: color.opacity(0.1),
+                    radius: 10,
                     x: 0,
                     y: 5
                 )
@@ -300,13 +290,12 @@ struct FeatureCard: View {
     }
 }
 
-// 浮遊する背景要素のデータ構造
 struct FloatingCircle: Identifiable {
     let id = UUID()
-    var relativeX: CGFloat  // 0.0〜1.0の相対位置
-    var relativeY: CGFloat  // 0.0〜1.0の相対位置
+    var relativeX: CGFloat
+    var relativeY: CGFloat
     var size: CGFloat
     var animationDuration: Double
     var animationDelay: Double
-    var offsetY: CGFloat = 0  // アニメーション用のオフセット
+    var offsetY: CGFloat = 0
 }

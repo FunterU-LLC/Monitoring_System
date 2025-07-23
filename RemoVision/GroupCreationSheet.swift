@@ -9,7 +9,6 @@ struct GroupCreationSheet: View {
     @State private var showContent = false
     @State private var pulseAnimation = false
     
-    // @FocusStateに変更
     @FocusState private var ownerFieldFocused: Bool
     @FocusState private var groupFieldFocused: Bool
     
@@ -70,7 +69,6 @@ struct GroupCreationSheet: View {
 
     var body: some View {
         ZStack {
-            // Animated gradient background - オレンジ系に変更
             LinearGradient(
                 colors: [
                     Color(red: 255/255, green: 224/255, blue: 153/255).opacity(0.15),
@@ -82,7 +80,6 @@ struct GroupCreationSheet: View {
             .ignoresSafeArea()
             
             VStack(spacing: 24) {
-                // Header with icon
                 VStack(spacing: 16) {
                     ZStack {
                         Circle()
@@ -140,9 +137,7 @@ struct GroupCreationSheet: View {
                     .offset(y: showContent ? 0 : 20)
                 }
                 
-                // Input fields
                 VStack(spacing: 16) {
-                    // Owner name field
                     VStack(alignment: .leading, spacing: 8) {
                         Label("オーナー名", systemImage: "person.fill")
                             .font(.system(size: 13, weight: .medium))
@@ -161,7 +156,6 @@ struct GroupCreationSheet: View {
                     .opacity(showContent ? 1 : 0)
                     .offset(y: showContent ? 0 : 30)
                     
-                    // Group name field
                     VStack(alignment: .leading, spacing: 8) {
                         Label("グループ名", systemImage: "folder.fill")
                             .font(.system(size: 13, weight: .medium))
@@ -183,7 +177,6 @@ struct GroupCreationSheet: View {
                     .offset(y: showContent ? 0 : 30)
                 }
                 
-                // Error message
                 if let err = errorMsg {
                     ErrorMessage(message: err)
                         .transition(.move(edge: .top).combined(with: .opacity))
@@ -191,7 +184,6 @@ struct GroupCreationSheet: View {
                 
                 Spacer()
                 
-                // Action buttons
                 HStack(spacing: 16) {
                     Button {
                         withAnimation(.spring(response: 0.3)) {
@@ -254,7 +246,6 @@ struct GroupCreationSheet: View {
             }
             pulseAnimation = true
             
-            // フォーカスを最初のフィールドに設定
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                 ownerFieldFocused = true
             }
@@ -268,7 +259,6 @@ struct GroupCreationSheet: View {
     }
 
     private func createGroup() async {
-        // エラーメッセージをクリア
         withAnimation {
             errorMsg = nil
         }
@@ -302,11 +292,9 @@ struct GroupCreationSheet: View {
     
     private func presentShareSheet(url: URL) {
         #if os(macOS)
-        // クリップボードにコピー
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(url.absoluteString, forType: .string)
         
-        // 成功通知
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
             let alert = NSAlert()
             alert.messageText = "共有URLをコピーしました"
@@ -321,7 +309,6 @@ struct GroupCreationSheet: View {
     }
 }
 
-// Error message component
 struct ErrorMessage: View {
     let message: String
     

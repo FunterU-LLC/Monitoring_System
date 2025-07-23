@@ -48,7 +48,6 @@ struct WorkInProgressView: View {
                     } else {
                         ForEach(hierarchicalTasks) { hierarchicalTask in
                             VStack(alignment: .leading, spacing: 2) {
-                                // 親タスク
                                 HStack {
                                     Text("▼ \(String(hierarchicalTask.task.title.dropFirst()))")
                                         .fontWeight(.semibold)
@@ -64,7 +63,6 @@ struct WorkInProgressView: View {
                                 }
                                 .padding(.vertical, 2)
                                 
-                                // 子タスク
                                 ForEach(hierarchicalTask.children) { childTask in
                                     HStack {
                                         Text("　　・\(childTask.title)")

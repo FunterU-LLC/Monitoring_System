@@ -60,7 +60,8 @@ final class SessionDataStore: ObservableObject {
                 comment:     t.comment,
                 appBreakdown: t.appBreakdown.map {
                     AppUsageModel(name: $0.name, seconds: $0.seconds)
-                }
+                },
+                parentTaskName: t.parentTaskName
             )
         }
         
@@ -156,10 +157,32 @@ final class SessionDataStore: ObservableObject {
     }
 
     private func loadAll() async {
-        let list = try! context.fetch(
-            FetchDescriptor<SessionRecordModel>(sortBy: [SortDescriptor(\.endTime, order: .reverse)])
-        )
-        allSessions = list
+        do {
+            let list = try context.fetch(
+                FetchDescriptor<SessionRecordModel>(sortBy: [SortDescriptor(\.endTime, order: .reverse)])
+            )
+            allSessions = list
+        } catch {
+            allSessions = []
+            
+            do {
+                let url = URL.applicationSupportDirectory.appending(path: "default.store")
+                if FileManager.default.fileExists(atPath: url.path) {
+                    try FileManager.default.removeItem(at: url)
+                }
+                
+                let shmURL = url.appendingPathExtension("shm")
+                if FileManager.default.fileExists(atPath: shmURL.path) {
+                    try FileManager.default.removeItem(at: shmURL)
+                }
+                
+                let walURL = url.appendingPathExtension("wal")
+                if FileManager.default.fileExists(atPath: walURL.path) {
+                    try FileManager.default.removeItem(at: walURL)
+                }
+            } catch {
+            }
+        }
     }
 
     private func merge(_ a:[AppUsage], _ b:[AppUsage]) -> [AppUsage] {

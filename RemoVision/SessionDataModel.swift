@@ -23,6 +23,7 @@ final class TaskUsageSummaryModel {
     var endTime:     Date = Date()
     var totalSeconds: Double = 0.0
     var comment: String? = nil
+    var parentTaskName: String? = nil
     
     @Relationship(deleteRule: .cascade) var appBreakdown: [AppUsageModel]? = []
     
@@ -35,7 +36,8 @@ final class TaskUsageSummaryModel {
          endTime:      Date,
          totalSeconds: Double,
          comment:      String? = nil,
-         appBreakdown: [AppUsageModel]? = nil) {
+         appBreakdown: [AppUsageModel]? = nil,
+         parentTaskName: String? = nil) {
 
         self.reminderId   = reminderId
         self.taskName     = taskName
@@ -45,6 +47,7 @@ final class TaskUsageSummaryModel {
         self.totalSeconds = totalSeconds
         self.comment      = comment
         self.appBreakdown = appBreakdown ?? []
+        self.parentTaskName = parentTaskName
     }
 }
 

@@ -37,10 +37,12 @@ struct TaskUsageSummary: Identifiable, Codable {
     var totalSeconds: Double
     var comment: String?
     var appBreakdown: [AppUsage]
+    var parentTaskName: String? = nil
 
     private enum CodingKeys: String, CodingKey {
         case reminderId, taskName,
              isCompleted, startTime, endTime,
-             totalSeconds, comment, appBreakdown
+             totalSeconds, comment, appBreakdown,
+             parentTaskName
     }
 }

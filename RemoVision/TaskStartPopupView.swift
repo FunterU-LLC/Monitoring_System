@@ -144,14 +144,12 @@ struct TaskStartPopupView: View {
             VStack(alignment: .leading, spacing: 0) {
                 ForEach(hierarchicalTasks) { hierarchicalTask in
                     VStack(alignment: .leading, spacing: 0) {
-                        // 親タスクまたは独立したタスク
                         hierarchicalTaskRow(
                             task: hierarchicalTask.task,
                             isParent: hierarchicalTask.isParent,
                             isExpanded: expandedParents.contains(hierarchicalTask.id)
                         )
                         
-                        // 子タスク（親タスクが展開されている場合のみ表示）
                         if hierarchicalTask.isParent && expandedParents.contains(hierarchicalTask.id) {
                             ForEach(hierarchicalTask.children) { childTask in
                                 hierarchicalTaskRow(
@@ -173,15 +171,12 @@ struct TaskStartPopupView: View {
     
     private func hierarchicalTaskRow(task: TaskItem, isParent: Bool, isExpanded: Bool, isChild: Bool = false) -> some View {
         Button {
-            // 押下時のアニメーション
             withAnimation(.easeInOut(duration: 0.1)) {
                 pressedTaskId = task.id
             }
             
-            // 選択処理
             toggleSelection(task.id)
             
-            // 押下状態をリセット
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
                 withAnimation(.easeInOut(duration: 0.1)) {
                     pressedTaskId = nil
@@ -189,13 +184,11 @@ struct TaskStartPopupView: View {
             }
         } label: {
             HStack(spacing: 0) {
-                // インデント
                 if isChild {
                     Spacer()
                         .frame(width: 24)
                 }
                 
-                // 展開/折りたたみボタン（親タスクのみ）
                 if isParent {
                     Button {
                         withAnimation(.easeInOut(duration: 0.2)) {
@@ -218,13 +211,11 @@ struct TaskStartPopupView: View {
                         .frame(width: 20)
                 }
                 
-                // チェックボックス
                 Image(systemName: selectedTaskIds.contains(task.id) ? "checkmark.square.fill" : "square")
                     .symbolRenderingMode(.palette)
                     .foregroundStyle(selectedTaskIds.contains(task.id) ? .white : .primary, selectedTaskIds.contains(task.id) ? .blue : .clear)
                     .padding(.leading, 8)
                 
-                // タスク内容
                 VStack(alignment: .leading) {
                     Text(isParent ? String(task.title.dropFirst()) : task.title)
                         .fontWeight(isParent ? .semibold : .regular)
@@ -410,16 +401,13 @@ struct TaskStartPopupView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 4) {
                 ForEach(hierarchicalTasks) { hierarchicalTask in
-                    // 親タスクまたは独立したタスクが選択されている場合のみ表示
                     if selectedTaskIds.contains(hierarchicalTask.task.id) {
                         VStack(alignment: .leading, spacing: 2) {
-                            // 親タスク
                             if hierarchicalTask.isParent {
                                 Text("▼ \(String(hierarchicalTask.task.title.dropFirst()))")
                                     .fontWeight(.semibold)
                                     .foregroundColor(Color(red: 92/255, green: 64/255, blue: 51/255))
                                 
-                                // 子タスク
                                 ForEach(hierarchicalTask.children) { childTask in
                                     if selectedTaskIds.contains(childTask.id) {
                                         Text("　　・\(childTask.title)")
@@ -428,7 +416,6 @@ struct TaskStartPopupView: View {
                                     }
                                 }
                             } else {
-                                // 独立したタスク
                                 Text("・\(hierarchicalTask.task.title)")
                             }
                         }
@@ -506,15 +493,12 @@ struct TaskStartPopupView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 4) {
                 ForEach(hierarchicalTasks) { hierarchicalTask in
-                    // 親タスクが選択されている場合のみ表示
                     if selectedTaskIds.contains(hierarchicalTask.task.id) {
                         VStack(alignment: .leading, spacing: 2) {
-                            // 親タスク
                             Text("▼ \(String(hierarchicalTask.task.title.dropFirst()))")
                                 .fontWeight(.semibold)
                                 .foregroundColor(Color(red: 92/255, green: 64/255, blue: 51/255))
                             
-                            // 子タスク
                             ForEach(hierarchicalTask.children) { childTask in
                                 if selectedTaskIds.contains(childTask.id) {
                                     Text("　　・\(childTask.title)")
@@ -645,13 +629,8 @@ struct TaskStartPopupView: View {
             return d1 < d2
         }
         displayedTasks = sorted
-        
-        // 階層構造を構築
         hierarchicalTasks = buildHierarchicalStructure(from: sorted)
-        
-        // すべての親タスクを展開状態で初期化
         expandedParents = Set(hierarchicalTasks.filter { $0.isParent }.map { $0.id })
-        
         currentIndex = displayedTasks.isEmpty ? 0 : min(currentIndex, displayedTasks.count - 1)
     }
     
@@ -662,7 +641,6 @@ struct TaskStartPopupView: View {
         
         for task in tasks {
             if task.title.hasPrefix("&") {
-                // 前の親タスクがある場合、それを結果に追加
                 if let parent = currentParent {
                     result.append(HierarchicalTask(
                         id: parent.id,
@@ -672,7 +650,6 @@ struct TaskStartPopupView: View {
                     ))
                 }
                 
-                // 新しい親タスクを設定
                 currentParent = HierarchicalTask(
                     id: task.id,
                     task: task,
@@ -681,12 +658,10 @@ struct TaskStartPopupView: View {
                 )
                 childrenBuffer = []
             } else {
-                // 子タスクとして追加
                 childrenBuffer.append(task)
             }
         }
         
-        // 最後の親タスクを追加
         if let parent = currentParent {
             result.append(HierarchicalTask(
                 id: parent.id,
@@ -710,27 +685,22 @@ struct TaskStartPopupView: View {
     }
     
     private func toggleSelection(_ id: String) {
-        // 親タスクの場合
         if let hierarchicalTask = hierarchicalTasks.first(where: { $0.id == id && $0.isParent }) {
             if selectedTaskIds.contains(id) {
-                // 親タスクとすべての子タスクを解除
                 selectedTaskIds.remove(id)
                 for child in hierarchicalTask.children {
                     selectedTaskIds.remove(child.id)
                 }
             } else {
-                // 親タスクとすべての子タスクを選択
                 selectedTaskIds.insert(id)
                 for child in hierarchicalTask.children {
                     selectedTaskIds.insert(child.id)
                 }
             }
         } else {
-            // 子タスクまたは独立したタスクの場合
             if selectedTaskIds.contains(id) {
                 selectedTaskIds.remove(id)
                 
-                // 子タスクの場合、すべての子タスクの選択が解除されたら親タスクも解除
                 if let parent = findParentTask(for: id) {
                     let anyChildSelected = parent.children.contains { selectedTaskIds.contains($0.id) }
                     if !anyChildSelected {
@@ -740,7 +710,6 @@ struct TaskStartPopupView: View {
             } else {
                 selectedTaskIds.insert(id)
                 
-                // 子タスクの場合、親タスクも自動的に選択
                 if let parent = findParentTask(for: id) {
                     selectedTaskIds.insert(parent.id)
                 }
@@ -750,7 +719,6 @@ struct TaskStartPopupView: View {
         selectedTaskIdsByList[remindersManager.selectedList] = selectedTaskIds
     }
 
-    // 子タスクの親を探すヘルパーメソッド
     private func findParentTask(for childId: String) -> HierarchicalTask? {
         return hierarchicalTasks.first { hierarchicalTask in
             hierarchicalTask.isParent && hierarchicalTask.children.contains { $0.id == childId }
@@ -819,7 +787,6 @@ struct TaskStartPopupView: View {
     }
 }
 
-// タスクの階層構造を表すデータ型
 struct HierarchicalTask: Identifiable {
     let id: String
     let task: TaskItem
