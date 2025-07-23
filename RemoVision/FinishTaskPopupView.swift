@@ -179,7 +179,6 @@ struct FinishTaskPopupView: View {
                     
                     let totalRecognized = faceRecognitionManager.endRecognitionSession()
                     let usageDict = appUsageManager.snapshotRecognizedUsage()
-                    let totalAppSeconds = usageDict.values.reduce(0, +)
                     appUsageManager.stopWork()
                     appUsageManager.calculateAggregatedUsage()
                     

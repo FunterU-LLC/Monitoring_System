@@ -505,9 +505,9 @@ final class CloudKitService {
         
         try await ensureZone()
         
-        let cache = await CloudKitCacheStore.shared
+        let cache = CloudKitCacheStore.shared
         let tokenKey = "\(groupID)_\(userName)"
-        let previousToken = await cache.loadToken(for: tokenKey)
+        let previousToken = cache.loadToken(for: tokenKey)
         
         let cachedSummaries = await cache.loadCachedSummaries(groupID: groupID, userName: userName, forDays: days)
         
@@ -580,7 +580,7 @@ final class CloudKitService {
         }
         
         if let token = newToken {
-            await cache.saveToken(token, for: tokenKey)
+            cache.saveToken(token, for: tokenKey)
         } else if previousToken != nil {
             await cache.clearCache(for: groupID, userName: userName)
             return try await fetchUserSummariesFullSync(groupID: groupID, userName: userName, forDays: days)
@@ -606,7 +606,6 @@ final class CloudKitService {
         let allSummaries = cachedSummaries + newSummaries
         
         var merged: [String: TaskUsageSummary] = [:]
-        var totalCompleted = 0
         
         for task in allSummaries {
             let key = task.reminderId.isEmpty ? task.taskName : task.reminderId
@@ -659,7 +658,7 @@ final class CloudKitService {
         let sessionRecords = try await performQuery(sessionQuery, in: db)
         
         var allSummaries: [TaskUsageSummary] = []
-        let cache = await CloudKitCacheStore.shared
+        let cache = CloudKitCacheStore.shared
         
         for sessionRecord in sessionRecords {
             let sessionRef = CKRecord.Reference(recordID: sessionRecord.recordID, action: .deleteSelf)
@@ -671,7 +670,6 @@ final class CloudKitService {
         }
         
         var merged: [String: TaskUsageSummary] = [:]
-        var totalCompleted = 0
         
         for task in allSummaries {
             let key = task.reminderId.isEmpty ? task.taskName : task.reminderId

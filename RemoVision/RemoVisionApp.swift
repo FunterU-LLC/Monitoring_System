@@ -38,7 +38,6 @@ struct UserNameInputSheet: View {
 
     var body: some View {
         ZStack {
-            // 背景グラデーション
             LinearGradient(
                 colors: [
                     Color(red: 255/255, green: 224/255, blue: 153/255).opacity(0.15),
@@ -50,7 +49,6 @@ struct UserNameInputSheet: View {
             .ignoresSafeArea()
             
             VStack(spacing: 24) {
-                // ヘッダーセクション
                 VStack(spacing: 16) {
                     ZStack {
                         Circle()
@@ -111,7 +109,6 @@ struct UserNameInputSheet: View {
                     .offset(y: showContent ? 0 : 20)
                 }
                 
-                // グループ情報カード
                 HStack(spacing: 12) {
                     Image(systemName: "folder.fill")
                         .font(.system(size: 16))
@@ -139,7 +136,6 @@ struct UserNameInputSheet: View {
                 .opacity(showContent ? 1 : 0)
                 .offset(y: showContent ? 0 : 30)
                 
-                // 入力フィールド
                 VStack(alignment: .leading, spacing: 8) {
                     Label("あなたのユーザーネーム", systemImage: "person.fill")
                         .font(.system(size: 13, weight: .medium))
@@ -175,7 +171,6 @@ struct UserNameInputSheet: View {
                 .opacity(showContent ? 1 : 0)
                 .offset(y: showContent ? 0 : 30)
                 
-                // エラーメッセージ
                 if let error = errorMessage {
                     HStack(spacing: 8) {
                         Image(systemName: "exclamationmark.triangle.fill")
@@ -206,7 +201,6 @@ struct UserNameInputSheet: View {
                 
                 Spacer()
                 
-                // ボタン
                 Button {
                     Task { await registerMember() }
                 } label: {
@@ -272,7 +266,6 @@ struct UserNameInputSheet: View {
     }
     
     private func registerMember() async {
-        // 既存の実装をそのまま使用
         let trimmedName = inputName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedName.isEmpty else { return }
         
@@ -542,13 +535,23 @@ struct RemoVisionApp: App {
     @MainActor
     private func updateGroupInfoFromShare(metadata: CKShare.Metadata) async {
         do {
+            guard let rootRecordID = metadata.hierarchicalRootRecordID else {
+                let alert = NSAlert()
+                alert.messageText = "エラー"
+                alert.informativeText = "グループ情報が無効です。"
+                alert.alertStyle = .warning
+                alert.addButton(withTitle: "OK")
+                alert.runModal()
+                return
+            }
+            
             let db = CKContainer.default().privateCloudDatabase
-            let groupRecord = try await db.record(for: metadata.rootRecordID)
+            let groupRecord = try await db.record(for: rootRecordID)
             
             if let groupName = groupRecord["groupName"] as? String,
                let ownerName = groupRecord["ownerName"] as? String {
                 
-                pendingGroupID = metadata.rootRecordID.recordName
+                pendingGroupID = rootRecordID.recordName
                 pendingGroupName = groupName
                 pendingOwnerName = ownerName
                 showUserNameSheet = true
