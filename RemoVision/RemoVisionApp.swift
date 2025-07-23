@@ -23,54 +23,256 @@ struct GroupInfo: Codable, Equatable {
 }
 
 struct UserNameInputSheet: View {
+    @Environment(\.colorScheme) var colorScheme
     @AppStorage("userName") private var userName: String = ""
     @State private var inputName: String = ""
     @State private var isRegistering: Bool = false
     @State private var errorMessage: String? = nil
+    @State private var showContent = false
+    @State private var pulseAnimation = false
+    @FocusState private var nameFieldFocused: Bool
     
     @Binding var groupID: String
     @Binding var groupName: String
     var onFinish: () -> Void
 
     var body: some View {
-        VStack(spacing: 20) {
-            Text("ユーザーネームを入力してください").font(.headline)
+        ZStack {
+            // 背景グラデーション
+            LinearGradient(
+                colors: [
+                    Color(red: 255/255, green: 224/255, blue: 153/255).opacity(0.15),
+                    Color(red: 255/255, green: 204/255, blue: 102/255).opacity(0.05)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .ignoresSafeArea()
             
-            Text("GroupID: \(groupID)")
-                .font(.caption)
-                .foregroundColor(.gray)
-            
-            TextField("ユーザーネーム", text: $inputName)
-                .textFieldStyle(.roundedBorder)
-                .frame(width: 240)
-                .disabled(isRegistering)
-            
-            if let error = errorMessage {
-                Text(error)
-                    .foregroundColor(.red)
-                    .font(.caption)
-            }
-            
-            Button("決定") {
-                Task {
-                    await registerMember()
+            VStack(spacing: 24) {
+                // ヘッダーセクション
+                VStack(spacing: 16) {
+                    ZStack {
+                        Circle()
+                            .fill(
+                                LinearGradient(
+                                    colors: [
+                                        Color(red: 255/255, green: 204/255, blue: 102/255),
+                                        Color(red: 255/255, green: 184/255, blue: 77/255)
+                                    ],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .frame(width: 70, height: 70)
+                            .shadow(color: Color(red: 255/255, green: 204/255, blue: 102/255).opacity(0.3), radius: 15, x: 0, y: 5)
+                            .scaleEffect(pulseAnimation ? 1.05 : 1.0)
+                            .animation(
+                                .easeInOut(duration: 2)
+                                .repeatForever(autoreverses: true),
+                                value: pulseAnimation
+                            )
+                        
+                        Image(systemName: "person.circle.fill")
+                            .font(.system(size: 35))
+                            .foregroundStyle(
+                                LinearGradient(
+                                    colors: [.white, .white.opacity(0.9)],
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                )
+                            )
+                    }
+                    .scaleEffect(showContent ? 1 : 0.5)
+                    .opacity(showContent ? 1 : 0)
+                    
+                    VStack(spacing: 6) {
+                        Text("ユーザーネームを設定")
+                            .font(.system(size: 22, weight: .bold, design: .rounded))
+                            .foregroundStyle(
+                                LinearGradient(
+                                    colors: colorScheme == .dark ? [
+                                        Color(red: 255/255, green: 224/255, blue: 153/255),
+                                        Color(red: 255/255, green: 214/255, blue: 143/255)
+                                    ] : [
+                                        Color(red: 92/255, green: 64/255, blue: 51/255),
+                                        Color(red: 92/255, green: 64/255, blue: 51/255).opacity(0.8)
+                                    ],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                            )
+                        
+                        Text("「\(groupName)」に参加します")
+                            .font(.system(size: 14))
+                            .foregroundColor(colorScheme == .dark ? .white.opacity(0.8) : .secondary)
+                    }
+                    .opacity(showContent ? 1 : 0)
+                    .offset(y: showContent ? 0 : 20)
                 }
+                
+                // グループ情報カード
+                HStack(spacing: 12) {
+                    Image(systemName: "folder.fill")
+                        .font(.system(size: 16))
+                        .foregroundColor(Color(red: 255/255, green: 204/255, blue: 102/255))
+                    
+                    Text("GroupID: \(groupID)")
+                        .font(.system(size: 12, design: .monospaced))
+                        .foregroundColor(colorScheme == .dark ? .white.opacity(0.7) : .secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background(
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(Color.gray.opacity(colorScheme == .dark ? 0.2 : 0.1))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .strokeBorder(
+                                    Color(red: 255/255, green: 204/255, blue: 102/255).opacity(0.3),
+                                    lineWidth: 1
+                                )
+                        )
+                )
+                .opacity(showContent ? 1 : 0)
+                .offset(y: showContent ? 0 : 30)
+                
+                // 入力フィールド
+                VStack(alignment: .leading, spacing: 8) {
+                    Label("あなたのユーザーネーム", systemImage: "person.fill")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(colorScheme == .dark ?
+                            Color(red: 255/255, green: 224/255, blue: 153/255) :
+                            Color(red: 92/255, green: 64/255, blue: 51/255))
+                    
+                    TextField("ユーザーネームを入力", text: $inputName)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 16))
+                        .padding(12)
+                        .background(
+                            RoundedRectangle(cornerRadius: 10)
+                                .fill(Color.gray.opacity(colorScheme == .dark ? 0.2 : 0.1))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 10)
+                                        .strokeBorder(
+                                            nameFieldFocused ?
+                                                Color(red: 255/255, green: 204/255, blue: 102/255).opacity(0.5) :
+                                                Color.gray.opacity(colorScheme == .dark ? 0.3 : 0.2),
+                                            lineWidth: 1.5
+                                        )
+                                )
+                        )
+                        .disabled(isRegistering)
+                        .focused($nameFieldFocused)
+                        .onSubmit {
+                            if !inputName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                Task { await registerMember() }
+                            }
+                        }
+                }
+                .opacity(showContent ? 1 : 0)
+                .offset(y: showContent ? 0 : 30)
+                
+                // エラーメッセージ
+                if let error = errorMessage {
+                    HStack(spacing: 8) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.system(size: 14))
+                            .foregroundColor(colorScheme == .dark ?
+                                Color(red: 255/255, green: 99/255, blue: 71/255) : .red)
+                        
+                        Text(error)
+                            .font(.system(size: 13))
+                            .foregroundColor(colorScheme == .dark ?
+                                Color(red: 255/255, green: 99/255, blue: 71/255) : .red)
+                            .lineLimit(2)
+                        
+                        Spacer()
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(Color.red.opacity(colorScheme == .dark ? 0.2 : 0.1))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .strokeBorder(Color.red.opacity(colorScheme == .dark ? 0.4 : 0.3), lineWidth: 1)
+                            )
+                    )
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                }
+                
+                Spacer()
+                
+                // ボタン
+                Button {
+                    Task { await registerMember() }
+                } label: {
+                    ZStack {
+                        if isRegistering {
+                            HStack(spacing: 8) {
+                                ProgressView()
+                                    .progressViewStyle(CircularProgressViewStyle())
+                                    .scaleEffect(0.8)
+                                    .colorScheme(.light)
+                                Text("登録中...")
+                                    .font(.system(size: 15, weight: .semibold))
+                            }
+                        } else {
+                            Label("参加する", systemImage: "checkmark.circle.fill")
+                                .font(.system(size: 15, weight: .semibold))
+                        }
+                    }
+                    .foregroundColor(Color(red: 92/255, green: 64/255, blue: 51/255))
+                    .frame(minWidth: 150)
+                    .padding(.vertical, 12)
+                    .background(
+                        Capsule()
+                            .fill(
+                                LinearGradient(
+                                    colors: inputName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isRegistering ?
+                                        [Color.gray, Color.gray.opacity(0.8)] :
+                                        [Color(red: 255/255, green: 204/255, blue: 102/255),
+                                         Color(red: 255/255, green: 184/255, blue: 77/255)],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                            )
+                            .shadow(
+                                color: inputName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isRegistering ?
+                                    Color.clear :
+                                    Color(red: 255/255, green: 204/255, blue: 102/255).opacity(0.3),
+                                radius: 10,
+                                x: 0,
+                                y: 5
+                            )
+                    )
+                }
+                .buttonStyle(.plain)
+                .disabled(inputName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isRegistering)
+                .opacity(showContent ? 1 : 0)
+                .offset(y: showContent ? 0 : 40)
             }
-            .disabled(inputName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isRegistering)
-            
-            if isRegistering {
-                ProgressView()
-                    .scaleEffect(0.8)
-            }
+            .padding(32)
+            .frame(width: 450)
         }
-        .padding(32)
-        .frame(width: 340)
         .onAppear {
             inputName = userName
+            withAnimation(.spring(response: 0.8, dampingFraction: 0.7)) {
+                showContent = true
+            }
+            pulseAnimation = true
+            
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                nameFieldFocused = true
+            }
         }
     }
     
     private func registerMember() async {
+        // 既存の実装をそのまま使用
         let trimmedName = inputName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedName.isEmpty else { return }
         

@@ -380,12 +380,12 @@ private extension ManagementView {
                     if isCurrentUser {
                         Image(systemName: "star.fill")
                             .font(.system(size: 12))
-                            .foregroundColor(isSelected ? .white : Color(red: 255/255, green: 204/255, blue: 102/255))
+                            .foregroundColor(isSelected ? Color(red: 92/255, green: 64/255, blue: 51/255) : Color(red: 255/255, green: 204/255, blue: 102/255))
                     }
                     
                     Text(member)
                         .font(.system(size: 14, weight: isSelected ? .semibold : .regular))
-                        .foregroundColor(isSelected ? .white : (isHovered ? .primary : .secondary))
+                        .foregroundColor(isSelected ? Color(red: 92/255, green: 64/255, blue: 51/255) : (isHovered ? .primary : .secondary))
                         .lineLimit(1)
                 }
                 .padding(.horizontal, 16)

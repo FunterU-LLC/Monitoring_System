@@ -17,6 +17,8 @@ struct OnboardingView: View {
         FloatingCircle(relativeX: 0.5, relativeY: 0.5, size: 70, animationDuration: 6.0, animationDelay: 2.0)
     ]
     
+    @Environment(\.colorScheme) var colorScheme
+    
     var body: some View {
         ZStack {
             LinearGradient(
@@ -109,7 +111,10 @@ struct OnboardingView: View {
                             .font(.system(size: 42, weight: .bold, design: .rounded))
                             .foregroundStyle(
                                 LinearGradient(
-                                    colors: [
+                                    colors: colorScheme == .dark ? [
+                                        Color(red: 255/255, green: 224/255, blue: 153/255),
+                                        Color(red: 255/255, green: 214/255, blue: 143/255)
+                                    ] : [
                                         Color(red: 92/255, green: 64/255, blue: 51/255),
                                         Color(red: 92/255, green: 64/255, blue: 51/255).opacity(0.8)
                                     ],
@@ -117,10 +122,10 @@ struct OnboardingView: View {
                                     endPoint: .trailing
                                 )
                             )
-                        
+
                         Text("チームの生産性を可視化")
                             .font(.system(size: 18, weight: .medium))
-                            .foregroundColor(.secondary)
+                            .foregroundColor(colorScheme == .dark ? .white.opacity(0.9) : .secondary)
                     }
                     .opacity(showContent ? 1 : 0)
                     .offset(y: showContent ? 0 : 20)
@@ -154,11 +159,13 @@ struct OnboardingView: View {
                 VStack(spacing: 14) {
                     Text("始めましょう")
                         .font(.system(size: 22, weight: .semibold))
-                        .foregroundColor(Color(red: 92/255, green: 64/255, blue: 51/255))
-                    
+                        .foregroundColor(colorScheme == .dark ?
+                            Color(red: 255/255, green: 224/255, blue: 153/255) :
+                            Color(red: 92/255, green: 64/255, blue: 51/255))
+
                     Text("グループを作成するか、招待URLから参加してください")
                         .font(.system(size: 15))
-                        .foregroundColor(.secondary)
+                        .foregroundColor(colorScheme == .dark ? .white.opacity(0.8) : .secondary)
                         .multilineTextAlignment(.center)
                         .frame(maxWidth: 350)
                     
@@ -171,7 +178,7 @@ struct OnboardingView: View {
                             Text("グループを作成")
                                 .font(.system(size: 15, weight: .semibold))
                         }
-                        .foregroundColor(.white)
+                        .foregroundColor(Color(red: 92/255, green: 64/255, blue: 51/255))
                         .padding(.horizontal, 28)
                         .padding(.vertical, 14)
                         .background(
@@ -221,6 +228,8 @@ struct FeatureCard: View {
     let description: String
     let color: Color
     
+    @Environment(\.colorScheme) var colorScheme
+    
     var body: some View {
         VStack(spacing: 14) {
             ZStack {
@@ -251,11 +260,13 @@ struct FeatureCard: View {
             VStack(spacing: 6) {
                 Text(title)
                     .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(Color(red: 92/255, green: 64/255, blue: 51/255))
-                
+                    .foregroundColor(colorScheme == .dark ?
+                        Color(red: 255/255, green: 224/255, blue: 153/255) :
+                        Color(red: 92/255, green: 64/255, blue: 51/255))
+                            
                 Text(description)
                     .font(.system(size: 12))
-                    .foregroundColor(.secondary)
+                    .foregroundColor(colorScheme == .dark ? .white.opacity(0.8) : .secondary)
                     .multilineTextAlignment(.center)
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)

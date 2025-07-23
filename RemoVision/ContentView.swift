@@ -544,7 +544,7 @@ struct GroupInfoFloatingButton: View {
                     .font(.system(size: 20))
                     .foregroundStyle(
                         LinearGradient(
-                            colors: [.white, .white.opacity(0.8)],
+                            colors: [Color(red: 92/255, green: 64/255, blue: 51/255), Color(red: 92/255, green: 64/255, blue: 51/255).opacity(0.8)],
                             startPoint: .top,
                             endPoint: .bottom
                         )
@@ -553,18 +553,18 @@ struct GroupInfoFloatingButton: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("参加中のグループ")
                         .font(.system(size: 11))
-                        .foregroundColor(.white.opacity(0.8))
+                        .foregroundColor(Color(red: 92/255, green: 64/255, blue: 51/255).opacity(0.8))
                         .lineLimit(1)
                     
                     Text(groupInfo.groupName)
                         .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(.white)
+                        .foregroundColor(Color(red: 92/255, green: 64/255, blue: 51/255))
                         .lineLimit(1)
                 }
                 
                 Image(systemName: isExpanded ? "chevron.down.circle.fill" : "chevron.up.circle.fill")
                     .font(.system(size: 16))
-                    .foregroundColor(.white.opacity(0.9))
+                    .foregroundColor(Color(red: 92/255, green: 64/255, blue: 51/255).opacity(0.8))
                     .rotationEffect(.degrees(isExpanded ? 180 : 0))
             }
             .padding(.horizontal, 20)
@@ -965,7 +965,7 @@ struct ShareButton: View {
                 Text("共有")
                     .font(.system(size: 13, weight: .medium))
             }
-            .foregroundColor(.white)
+            .foregroundColor(Color(red: 92/255, green: 64/255, blue: 51/255))
             .padding(.horizontal, 20)
             .padding(.vertical, 8)
             .background(

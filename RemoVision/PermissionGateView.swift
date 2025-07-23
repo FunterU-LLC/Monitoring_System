@@ -6,6 +6,8 @@ struct PermissionGateView: View {
     @State private var showPermissions = false
     @State private var currentStep = 0
     
+    @Environment(\.colorScheme) var colorScheme
+    
     var body: some View {
         ZStack {
             LinearGradient(
@@ -61,7 +63,10 @@ struct PermissionGateView: View {
                 .font(.system(size: 32, weight: .bold, design: .rounded))
                 .foregroundStyle(
                     LinearGradient(
-                        colors: [
+                        colors: colorScheme == .dark ? [
+                            Color(red: 255/255, green: 224/255, blue: 153/255),
+                            Color(red: 255/255, green: 214/255, blue: 143/255)
+                        ] : [
                             Color(red: 92/255, green: 64/255, blue: 51/255),
                             Color(red: 92/255, green: 64/255, blue: 51/255).opacity(0.8)
                         ],
@@ -69,10 +74,10 @@ struct PermissionGateView: View {
                         endPoint: .trailing
                     )
                 )
-            
+
             Text("最適な体験のために、以下の権限が必要です")
                 .font(.system(size: 16))
-                .foregroundColor(.secondary)
+                .foregroundColor(colorScheme == .dark ? .white.opacity(0.9) : .secondary)
         }
         .opacity(showPermissions ? 1 : 0)
         .offset(y: showPermissions ? 0 : -20)
@@ -214,6 +219,7 @@ struct PermissionRow: View {
     let action: () -> Void
     
     @State private var isButtonHovering = false
+    @Environment(\.colorScheme) var colorScheme
     
     var body: some View {
         HStack(spacing: 20) {
@@ -246,11 +252,13 @@ struct PermissionRow: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)
                     .font(.system(size: 18, weight: .semibold))
-                    .foregroundColor(Color(red: 92/255, green: 64/255, blue: 51/255))
-                
+                    .foregroundColor(colorScheme == .dark ?
+                        Color(red: 255/255, green: 224/255, blue: 153/255) :
+                        Color(red: 92/255, green: 64/255, blue: 51/255))
+
                 Text(description)
                     .font(.system(size: 14))
-                    .foregroundColor(.secondary)
+                    .foregroundColor(colorScheme == .dark ? .white.opacity(0.8) : .secondary)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             
@@ -269,7 +277,7 @@ struct PermissionRow: View {
                             Text("設定を開く")
                         }
                         .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(.white)
+                        .foregroundColor(Color(red: 92/255, green: 64/255, blue: 51/255))
                         .padding(.horizontal, 16)
                         .padding(.vertical, 8)
                         .background(Capsule().fill(color))
@@ -364,6 +372,7 @@ struct ProgressBar: View {
 
 struct CompletionView: View {
     @State private var showCheckmark = false
+    @Environment(\.colorScheme) var colorScheme
     
     var body: some View {
         VStack(spacing: 16) {
@@ -395,7 +404,9 @@ struct CompletionView: View {
                 .font(.system(size: 20, weight: .semibold))
                 .foregroundStyle(
                     LinearGradient(
-                        colors: [.green, .green.opacity(0.8)],
+                        colors: colorScheme == .dark ?
+                            [.green.opacity(0.9), .green.opacity(0.7)] :
+                            [.green, .green.opacity(0.8)],
                         startPoint: .leading,
                         endPoint: .trailing
                     )

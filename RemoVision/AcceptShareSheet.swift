@@ -13,6 +13,8 @@ struct AcceptShareSheet: View {
     @State private var isLoadingInfo = true
     @State private var showContent = false
     @State private var pulseAnimation = false
+    
+    @Environment(\.colorScheme) var colorScheme
 
     var body: some View {
         ZStack {
@@ -67,7 +69,10 @@ struct AcceptShareSheet: View {
                             .font(.system(size: 20, weight: .bold, design: .rounded))
                             .foregroundStyle(
                                 LinearGradient(
-                                    colors: [
+                                    colors: colorScheme == .dark ? [
+                                        Color(red: 255/255, green: 224/255, blue: 153/255),
+                                        Color(red: 255/255, green: 214/255, blue: 143/255)
+                                    ] : [
                                         Color(red: 92/255, green: 64/255, blue: 51/255),
                                         Color(red: 92/255, green: 64/255, blue: 51/255).opacity(0.8)
                                     ],
@@ -75,10 +80,10 @@ struct AcceptShareSheet: View {
                                     endPoint: .trailing
                                 )
                             )
-                        
+
                         Text("以下のグループに参加しますか？")
                             .font(.system(size: 14))
-                            .foregroundColor(.secondary)
+                            .foregroundColor(colorScheme == .dark ? .white.opacity(0.8) : .secondary)
                     }
                     .opacity(showContent ? 1 : 0)
                     
@@ -113,15 +118,15 @@ struct AcceptShareSheet: View {
                     } label: {
                         Label("キャンセル", systemImage: "xmark")
                             .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(.secondary)
+                            .foregroundColor(colorScheme == .dark ? .white.opacity(0.8) : .secondary)
                             .frame(minWidth: 100)
                             .padding(.vertical, 10)
                             .background(
                                 Capsule()
-                                    .fill(Color.gray.opacity(0.1))
+                                    .fill(Color.gray.opacity(colorScheme == .dark ? 0.2 : 0.1))
                                     .overlay(
                                         Capsule()
-                                            .strokeBorder(Color.gray.opacity(0.3), lineWidth: 1)
+                                            .strokeBorder(Color.gray.opacity(colorScheme == .dark ? 0.4 : 0.3), lineWidth: 1)
                                     )
                             )
                     }
@@ -137,7 +142,7 @@ struct AcceptShareSheet: View {
                                     ProgressView()
                                         .progressViewStyle(CircularProgressViewStyle())
                                         .scaleEffect(0.7)
-                                        .colorScheme(.dark)
+                                        .colorScheme(.light)
                                     Text("参加中...")
                                         .font(.system(size: 14, weight: .semibold))
                                 }
@@ -146,7 +151,7 @@ struct AcceptShareSheet: View {
                                     .font(.system(size: 14, weight: .semibold))
                             }
                         }
-                        .foregroundColor(.white)
+                        .foregroundColor(Color(red: 92/255, green: 64/255, blue: 51/255))
                         .frame(minWidth: 140)
                         .padding(.vertical, 10)
                         .background(
@@ -162,7 +167,7 @@ struct AcceptShareSheet: View {
                                     )
                                 )
                                 .shadow(color: Color(red: 255/255, green: 204/255, blue: 102/255).opacity(0.3), radius: 8, x: 0, y: 3)
-                    )
+                        )
                 }
                 .buttonStyle(.plain)
                 .disabled(isJoining || isLoadingInfo)
@@ -354,17 +359,20 @@ struct CompactGroupInfoCard: View {
 }
 
 struct CompactErrorBanner: View {
+    @Environment(\.colorScheme) var colorScheme
     let message: String
     
     var body: some View {
         HStack(spacing: 8) {
             Image(systemName: "exclamationmark.triangle.fill")
                 .font(.system(size: 16))
-                .foregroundColor(.red)
+                .foregroundColor(colorScheme == .dark ?
+                    Color(red: 255/255, green: 99/255, blue: 71/255) : .red)
             
             Text(message)
                 .font(.system(size: 12))
-                .foregroundColor(.red)
+                .foregroundColor(colorScheme == .dark ?
+                    Color(red: 255/255, green: 99/255, blue: 71/255) : .red)
                 .lineLimit(1)
             
             Spacer()
@@ -373,16 +381,17 @@ struct CompactErrorBanner: View {
         .padding(.vertical, 8)
         .background(
             RoundedRectangle(cornerRadius: 8)
-                .fill(Color.red.opacity(0.1))
+                .fill(Color.red.opacity(colorScheme == .dark ? 0.2 : 0.1))
                 .overlay(
                     RoundedRectangle(cornerRadius: 8)
-                        .strokeBorder(Color.red.opacity(0.3), lineWidth: 1)
+                        .strokeBorder(Color.red.opacity(colorScheme == .dark ? 0.4 : 0.3), lineWidth: 1)
                 )
         )
     }
 }
 
 struct ShareInfoRow: View {
+    @Environment(\.colorScheme) var colorScheme
     let icon: String
     let iconColor: Color
     let title: String
@@ -392,7 +401,7 @@ struct ShareInfoRow: View {
         VStack(spacing: 8) {
             ZStack {
                 Circle()
-                    .fill(iconColor.opacity(0.1))
+                    .fill(iconColor.opacity(colorScheme == .dark ? 0.2 : 0.1))
                     .frame(width: 36, height: 36)
                 
                 Image(systemName: icon)
@@ -403,11 +412,11 @@ struct ShareInfoRow: View {
             VStack(spacing: 2) {
                 Text(title)
                     .font(.system(size: 11))
-                    .foregroundColor(.secondary)
+                    .foregroundColor(colorScheme == .dark ? .white.opacity(0.7) : .secondary)
                 
                 Text(value)
                     .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(.primary)
+                    .foregroundColor(colorScheme == .dark ? .white : .primary)
                     .lineLimit(1)
                     .truncationMode(.tail)
             }
