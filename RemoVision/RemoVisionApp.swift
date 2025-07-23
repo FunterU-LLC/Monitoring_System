@@ -186,6 +186,9 @@ struct RemoVisionApp: App {
                         .environment(permissionCoordinator)
                 }
             }
+            .frame(minWidth: 800, minHeight: 600)  // 追加
+            .overlay(WindowMinSizeEnforcer(minWidth: 800, minHeight: 600)
+                        .allowsHitTesting(false))  // 追加
             .environment(popupCoordinator)
             .environment(faceRecognitionManager)
             .environment(remindersManager)

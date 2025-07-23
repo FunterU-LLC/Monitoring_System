@@ -3,17 +3,16 @@ import AppKit
 
 struct PermissionGateView: View {
     @Environment(PermissionCoordinator.self) private var perm
-    @State private var isRequesting = false
     @State private var showPermissions = false
     @State private var currentStep = 0
     
     var body: some View {
         ZStack {
-            // Background gradient
+            // Background gradient - オレンジ系に変更
             LinearGradient(
                 colors: [
-                    Color.accentColor.opacity(0.1),
-                    Color.purple.opacity(0.05)
+                    Color(red: 255/255, green: 224/255, blue: 153/255).opacity(0.1),
+                    Color(red: 255/255, green: 204/255, blue: 102/255).opacity(0.05)
                 ],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
@@ -26,7 +25,7 @@ struct PermissionGateView: View {
                 progressSection
                 actionSection
             }
-            .frame(minWidth: 600, minHeight: 700)
+            .frame(minWidth: 650, minHeight: 600)
             .padding(40)
         }
         .onAppear {
@@ -39,6 +38,8 @@ struct PermissionGateView: View {
             perm.recheckAll()
             updateCurrentStep()
         }
+        .frame(minWidth: 800, minHeight: 600)  // 650から800に変更
+        .padding(40)
     }
     
     // Header section
@@ -48,7 +49,10 @@ struct PermissionGateView: View {
                 .font(.system(size: 60))
                 .foregroundStyle(
                     LinearGradient(
-                        colors: [.accentColor, .purple],
+                        colors: [
+                            Color(red: 255/255, green: 204/255, blue: 102/255),
+                            Color(red: 255/255, green: 184/255, blue: 77/255)
+                        ],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     )
@@ -57,6 +61,16 @@ struct PermissionGateView: View {
             
             Text("アプリの権限設定")
                 .font(.system(size: 32, weight: .bold, design: .rounded))
+                .foregroundStyle(
+                    LinearGradient(
+                        colors: [
+                            Color(red: 92/255, green: 64/255, blue: 51/255),
+                            Color(red: 92/255, green: 64/255, blue: 51/255).opacity(0.8)
+                        ],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
             
             Text("最適な体験のために、以下の権限が必要です")
                 .font(.system(size: 16))
@@ -73,8 +87,8 @@ struct PermissionGateView: View {
             permissionRow(
                 icon: "checklist",
                 title: "リマインダー",
-                description: "タスクの管理と追跡",
-                color: .orange,
+                description: "タスクの管理",
+                color: Color.appOrange,  // 統一された色に変更
                 status: perm.remindersStatus,
                 isActive: currentStep >= 0,
                 delay: 0.0
@@ -86,8 +100,8 @@ struct PermissionGateView: View {
             permissionRow(
                 icon: "camera.fill",
                 title: "カメラ",
-                description: "在席状況の自動検知",
-                color: .blue,
+                description: "在席状況の自動検知（録画機能はありません）",
+                color: Color.appOrange,  // 統一された色に変更
                 status: perm.cameraStatus,
                 isActive: currentStep >= 1,
                 delay: 0.1
@@ -100,12 +114,12 @@ struct PermissionGateView: View {
                 icon: "accessibility",
                 title: "アクセシビリティ",
                 description: "アプリ使用状況の記録",
-                color: .purple,
+                color: Color.appOrange,  // 統一された色に変更
                 status: perm.accessibilityStatus,
                 isActive: currentStep >= 2,
                 delay: 0.2
             ) {
-                perm.promptAccessibilityPanel()
+                openPrefs("Accessibility")
             }
         }
         .padding(.horizontal, 40)
@@ -126,48 +140,12 @@ struct PermissionGateView: View {
     // Action section
     private var actionSection: some View {
         VStack(spacing: 16) {
-            if !perm.allGranted {
-                requestPermissionsButton
-            } else {
+            if perm.allGranted {
                 CompletionView()
             }
         }
         .opacity(showPermissions ? 1 : 0)
         .offset(y: showPermissions ? 0 : 20)
-    }
-    
-    private var requestPermissionsButton: some View {
-        Button {
-            requestAllPermissions()
-        } label: {
-            HStack {
-                if isRequesting {
-                    ProgressView()
-                        .progressViewStyle(CircularProgressViewStyle())
-                        .scaleEffect(0.8)
-                        .frame(width: 20, height: 20)
-                } else {
-                    Image(systemName: "checkmark.shield.fill")
-                        .font(.system(size: 20))
-                }
-                Text(isRequesting ? "設定中..." : "すべての権限を許可")
-                    .font(.system(size: 16, weight: .semibold))
-            }
-            .foregroundColor(.white)
-            .padding(.horizontal, 32)
-            .padding(.vertical, 16)
-            .background(
-                LinearGradient(
-                    colors: [Color.accentColor, Color.purple],
-                    startPoint: .leading,
-                    endPoint: .trailing
-                )
-            )
-            .cornerRadius(12)
-            .shadow(color: Color.accentColor.opacity(0.4), radius: 10, x: 0, y: 5)
-        }
-        .buttonStyle(.plain)
-        .disabled(isRequesting)
     }
     
     // Helper function to create permission row
@@ -210,8 +188,8 @@ struct PermissionGateView: View {
     private func progressColor(for progress: Double) -> Color {
         switch progress {
         case 0: return .red
-        case 0..<0.5: return .orange
-        case 0.5..<1: return .yellow
+        case 0..<0.5: return Color(red: 255/255, green: 164/255, blue: 51/255)  // オレンジ
+        case 0.5..<1: return Color(red: 255/255, green: 204/255, blue: 102/255)  // 明るいオレンジ
         default: return .green
         }
     }
@@ -225,17 +203,6 @@ struct PermissionGateView: View {
                     currentStep = 3
                 }
             }
-        }
-    }
-    
-    private func requestAllPermissions() {
-        Task {
-            isRequesting = true
-            if perm.remindersStatus != .granted { await perm.requestReminders() }
-            if perm.cameraStatus != .granted { await perm.requestCamera() }
-            perm.recheckAccessibility()
-            updateCurrentStep()
-            isRequesting = false
         }
     }
     
@@ -255,7 +222,7 @@ struct PermissionRow: View {
     let isActive: Bool
     let action: () -> Void
     
-    @State private var isHovering = false
+    @State private var isButtonHovering = false  // isHoveringから変更
     
     var body: some View {
         HStack(spacing: 20) {
@@ -290,7 +257,7 @@ struct PermissionRow: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)
                     .font(.system(size: 18, weight: .semibold))
-                    .foregroundColor(.primary)
+                    .foregroundColor(Color(red: 92/255, green: 64/255, blue: 51/255))
                 
                 Text(description)
                     .font(.system(size: 14))
@@ -307,7 +274,7 @@ struct PermissionRow: View {
                         text: "許可済み",
                         color: .green
                     )
-                case .denied:
+                case .denied, .unknown:
                     Button(action: action) {
                         HStack(spacing: 6) {
                             Image(systemName: "gear")
@@ -318,14 +285,20 @@ struct PermissionRow: View {
                         .padding(.horizontal, 16)
                         .padding(.vertical, 8)
                         .background(Capsule().fill(color))
+                        .scaleEffect(isButtonHovering ? 1.05 : 1)  // ボタンのみに適用
+                        .shadow(
+                            color: isButtonHovering ? color.opacity(0.3) : color.opacity(0.1),
+                            radius: isButtonHovering ? 8 : 4,
+                            x: 0,
+                            y: isButtonHovering ? 4 : 2
+                        )  // ボタンのみに適用
                     }
                     .buttonStyle(.plain)
-                case .unknown:
-                    StatusBadge(
-                        icon: "questionmark.circle",
-                        text: "未設定",
-                        color: .gray
-                    )
+                    .onHover { hovering in
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                            isButtonHovering = hovering
+                        }
+                    }  // ボタンのみに適用
                 }
             }
         }
@@ -341,18 +314,13 @@ struct PermissionRow: View {
                         )
                 )
                 .shadow(
-                    color: isHovering ? color.opacity(0.2) : .black.opacity(0.05),
-                    radius: isHovering ? 15 : 10,
+                    color: .black.opacity(0.05),  // 固定のシャドウに変更
+                    radius: 10,
                     x: 0,
                     y: 5
                 )
         )
-        .scaleEffect(isHovering ? 1.02 : 1)
-        .onHover { hovering in
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                isHovering = hovering
-            }
-        }
+        // .scaleEffect と .onHover を削除
     }
 }
 

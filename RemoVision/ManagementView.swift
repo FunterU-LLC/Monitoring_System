@@ -70,7 +70,7 @@ struct ManagementView: View {
                             .foregroundColor(.secondary)
                         Text("ネットワーク状態: \(CloudKitService.shared.getNetworkStatus())")
                             .font(.caption)
-                            .foregroundColor(CloudKitService.shared.isOnline ? .green : .red)
+                            .foregroundColor(CloudKitService.shared.isOnline ? Color(red: 0/255, green: 128/255, blue: 0/255) : .red)  // 緑はそのまま、オンラインの緑は変更なし
                     }
                     .padding(.bottom, 16)
                 }
@@ -352,7 +352,7 @@ private extension ManagementView {
                     if isCurrentUser {
                         Image(systemName: "star.fill")
                             .font(.system(size: 12))
-                            .foregroundColor(isSelected ? .white : .accentColor)
+                            .foregroundColor(isSelected ? .white : Color(red: 255/255, green: 204/255, blue: 102/255))  // オレンジに変更
                     }
                     
                     Text(member)
@@ -364,7 +364,7 @@ private extension ManagementView {
                 .padding(.vertical, 8)
                 .background(
                     Capsule()
-                        .fill(isSelected ? Color.accentColor : (isHovered ? Color.gray.opacity(0.15) : Color.gray.opacity(0.1)))
+                        .fill(isSelected ? Color(red: 255/255, green: 204/255, blue: 102/255) : (isHovered ? Color.gray.opacity(0.15) : Color.gray.opacity(0.1)))  // オレンジに変更
                         .overlay(
                             Capsule()
                                 .strokeBorder(
@@ -407,7 +407,7 @@ private extension ManagementView {
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)
                     .background(Capsule()
-                        .fill(p == period ? Color.accentColor.opacity(0.25) : .clear))
+                        .fill(p == period ? Color(red: 255/255, green: 204/255, blue: 102/255).opacity(0.25) : .clear))  // オレンジに変更
                     .contentShape(Capsule())
                     .onTapGesture { period = p }
             }
@@ -491,9 +491,12 @@ private extension ManagementView {
             )
             
             await MainActor.run {
+                // 親タスク（「&」で始まるタスク）を除外
+                let filteredSummaries = result.0.filter { !$0.taskName.hasPrefix("&") }
+                let filteredResult = (filteredSummaries, result.1)
                 
                 withAnimation(.easeInOut(duration: 0.4)) {
-                    summaries = result
+                    summaries = filteredResult
                 }
                 isUpdatingCloudKit = false
             }
@@ -634,9 +637,8 @@ private struct TaskStackedRow: View {
             HStack {
                 Button {
                 } label: {
-                    Image(systemName: (localIsCompleted ?? task.isCompleted) ? "checkmark.circle.fill"
-                          : "xmark.circle.fill")
-                    .foregroundColor((localIsCompleted ?? task.isCompleted) ? .green : .orange)
+                    Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "xmark.circle.fill")
+                        .foregroundColor(task.isCompleted ? .green : .orange)  // 既にオレンジなのでそのまま
                 }
                 .buttonStyle(.plain)
                 .onTapGesture {
@@ -678,15 +680,14 @@ private struct TaskStackedRow: View {
                 
                 Spacer()
                 
-                if rowHover {
-                    Button {
-                        showDelete = true
-                    } label: {
-                        Image(systemName: "trash")
-                    }
-                    .buttonStyle(.plain)
+                Button {
+                    showDelete = true
+                } label: {
+                    Image(systemName: "trash")
                 }
-                
+                .buttonStyle(.plain)
+                .opacity(rowHover ? 1 : 0)  // 常にスペースを確保、表示/非表示はopacityで制御
+
                 Text(task.totalSeconds.hmString)
                     .font(.caption2)
                     .foregroundColor(.secondary)
@@ -721,6 +722,23 @@ private struct TaskStackedRow: View {
                                     .foregroundColor(.white)
                                 : nil
                             )
+                    }
+                }
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    if !isEditingName {
+                        withAnimation(.spring(response: 0.4,
+                                              dampingFraction: 0.65,
+                                              blendDuration: 0)) {
+                            isExpanded.toggle()
+                        }
+                    }
+                }
+                .onHover { hovering in
+                    if hovering && !isEditingName {
+                        NSCursor.pointingHand.push()
+                    } else {
+                        NSCursor.pop()
                     }
                 }
             }
@@ -966,7 +984,11 @@ private struct TaskAppStackedChartView: View {
         var map: [String: Color] = [:]
         for t in tasks {
             for a in t.appBreakdown {
-                map[a.name] = AppColorManager.shared.color(for: a.name)
+                // AppColorManagerの代わりにオレンジ系の色を生成
+                let hash = a.name.hashValue
+                let hue = Double(abs(hash) % 60) / 60.0  // 0.0〜1.0のオレンジ〜黄色の範囲
+                let baseHue = 0.083 + (hue * 0.083)  // オレンジ色の範囲（30度〜60度）
+                map[a.name] = Color(hue: baseHue, saturation: 0.8, brightness: 0.9)
             }
         }
         map["その他"] = .gray
@@ -1000,9 +1022,7 @@ private struct TaskLengthRow: View {
     @Binding var cloudKitUpdateMessage: String
     
     private var barColor: Color {
-        colorScheme == .dark
-        ? Color.orange
-        : Color.accentColor
+        Color(red: 255/255, green: 204/255, blue: 102/255)  // オレンジに変更
     }
     
     @State private var hovering = false
@@ -1069,14 +1089,14 @@ private struct TaskLengthRow: View {
                     HStack(spacing: 4) {
                         Text(task.totalSeconds.hmString)
                             .frame(width: 70, alignment: .trailing)
-                        if rowHover {
-                            Button {
-                                showDelete = true
-                            } label: {
-                                Image(systemName: "trash")
-                            }
-                            .buttonStyle(.plain)
+                        
+                        Button {
+                            showDelete = true
+                        } label: {
+                            Image(systemName: "trash")
                         }
+                        .buttonStyle(.plain)
+                        .opacity(rowHover ? 1 : 0)  // 常にスペースを確保
                     }
                 }
             }

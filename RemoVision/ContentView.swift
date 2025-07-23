@@ -127,6 +127,8 @@ struct ContentView: View {
     
     @ObservedObject var groupInfoStore = GroupInfoStore.shared
     @State private var showGroupDetail = false
+    @State private var copySuccess = false
+    @State private var showShareMenu = false
     
     @Environment(PopupCoordinator.self) var popupCoordinator
     @Environment(RemindersManager.self) var remindersManager
@@ -205,8 +207,6 @@ struct ContentView: View {
                     Spacer().frame(height: 12)
                 }
             }
-            .overlay(WindowMinSizeEnforcer(minWidth: 800, minHeight: 600)
-                     .allowsHitTesting(false))
             .frame(width: geo.size.width, height: geo.size.height)
             .overlay(
                 KeyboardMonitorView { event in
@@ -263,6 +263,56 @@ struct ContentView: View {
         .overlay(
             Group {
                 if let info = groupInfoStore.groupInfo {
+                    // パネル（独立したoverlay）
+                    if showGroupDetail {
+                        // 背景の透明なタップ検知エリア
+                        Color.clear
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                                    showGroupDetail = false
+                                }
+                            }
+                            .ignoresSafeArea()
+                        
+                        VStack {
+                            Spacer()
+                            HStack {
+                                GroupDetailPanel(
+                                    groupInfo: info,
+                                    userName: userName,
+                                    copySuccess: $copySuccess,
+                                    showShareMenu: $showShareMenu,
+                                    onClose: {
+                                        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                                            showGroupDetail = false
+                                        }
+                                    }
+                                )
+                                .transition(.asymmetric(
+                                    insertion: .scale(scale: 0.8, anchor: .bottomLeading)
+                                        .combined(with: .opacity),
+                                    removal: .scale(scale: 0.8, anchor: .bottomLeading)
+                                        .combined(with: .opacity)
+                                ))
+                                .offset(y: -80)
+                                .onTapGesture {
+                                    // パネル自体のタップは何もしない（イベントの伝播を止める）
+                                }
+                                
+                                Spacer()
+                            }
+                            .padding(.horizontal, 24)
+                            .padding(.bottom, 24)
+                        }
+                    }
+                }
+            }
+        )
+        .overlay(
+            Group {
+                if let info = groupInfoStore.groupInfo {
+                    // ボタン（独立したoverlay、常に固定位置）
                     VStack {
                         Spacer()
                         
@@ -412,103 +462,80 @@ struct GroupInfoFloatingButton: View {
     let userName: String
     @Binding var isExpanded: Bool
     @State private var isHovering = false
-    @State private var showShareMenu = false
-    @State private var copySuccess = false
+    
+    @State private var copySuccess = false  // ローカル状態として追加
+    @State private var showShareMenu = false  // ローカル状態として追加
     
     var body: some View {
-        VStack(alignment: .trailing, spacing: 12) {
-            if isExpanded {
-                GroupDetailPanel(
-                    groupInfo: groupInfo,
-                    userName: userName,
-                    copySuccess: $copySuccess,
-                    showShareMenu: $showShareMenu,
-                    onClose: {
-                        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                            isExpanded = false
-                        }
-                    }
-                )
-                .transition(.asymmetric(
-                    insertion: .scale(scale: 0.8, anchor: .bottomTrailing)
-                        .combined(with: .opacity)
-                        .combined(with: .offset(x: 0, y: 20)),
-                    removal: .scale(scale: 0.8, anchor: .bottomTrailing)
-                        .combined(with: .opacity)
-                        .combined(with: .offset(x: 0, y: 20))
-                ))
+        Button {
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                isExpanded.toggle()
             }
-            
-            Button {
-                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                    isExpanded.toggle()
-                }
-            } label: {
-                HStack(spacing: 12) {
-                    Image(systemName: "person.3.fill")
-                        .font(.system(size: 20))
-                        .foregroundStyle(
-                            LinearGradient(
-                                colors: [.white, .white.opacity(0.8)],
-                                startPoint: .top,
-                                endPoint: .bottom
-                            )
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "person.3.fill")
+                    .font(.system(size: 20))
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [.white, .white.opacity(0.8)],
+                            startPoint: .top,
+                            endPoint: .bottom
                         )
+                    )
+                
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("参加中のグループ")
+                        .font(.system(size: 11))
+                        .foregroundColor(.white.opacity(0.8))
+                        .lineLimit(1)
                     
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("参加中のグループ")
-                            .font(.system(size: 11))
-                            .foregroundColor(.white.opacity(0.8))
-                            .lineLimit(1)
-                        
-                        Text(groupInfo.groupName)
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundColor(.white)
-                            .lineLimit(1)
-                    }
-                    
-                    Image(systemName: isExpanded ? "chevron.down.circle.fill" : "chevron.up.circle.fill")
-                        .font(.system(size: 16))
-                        .foregroundColor(.white.opacity(0.9))
-                        .rotationEffect(.degrees(isExpanded ? 180 : 0))
+                    Text(groupInfo.groupName)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.white)
+                        .lineLimit(1)
                 }
-                .padding(.horizontal, 20)
-                .padding(.vertical, 14)
-                .background(
-                    Capsule()
-                        .fill(
-                            LinearGradient(
-                                colors: [
-                                    Color.accentColor,
-                                    Color.accentColor.opacity(0.8)
-                                ],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                        .shadow(color: .black.opacity(0.2), radius: 10, x: 0, y: 5)
-                        .overlay(
-                            Capsule()
-                                .strokeBorder(
-                                    LinearGradient(
-                                        colors: [
-                                            Color.white.opacity(0.3),
-                                            Color.white.opacity(0.1)
-                                        ],
-                                        startPoint: .topLeading,
-                                        endPoint: .bottomTrailing
-                                    ),
-                                    lineWidth: 1
-                                )
-                        )
-                )
-                .scaleEffect(isHovering ? 1.05 : 1.0)
+                
+                Image(systemName: isExpanded ? "chevron.down.circle.fill" : "chevron.up.circle.fill")
+                    .font(.system(size: 16))
+                    .foregroundColor(.white.opacity(0.9))
+                    .rotationEffect(.degrees(isExpanded ? 180 : 0))
             }
-            .buttonStyle(.plain)
-            .onHover { hovering in
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    isHovering = hovering
-                }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 14)
+            .background(
+                Capsule()
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                Color(red: 255/255, green: 204/255, blue: 102/255),
+                                Color(red: 255/255, green: 184/255, blue: 77/255)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .shadow(color: Color(red: 255/255, green: 204/255, blue: 102/255).opacity(0.3), radius: 10, x: 0, y: 5)
+                    .overlay(
+                        Capsule()
+                            .strokeBorder(
+                                LinearGradient(
+                                    colors: [
+                                        Color.white.opacity(0.3),
+                                        Color.white.opacity(0.1)
+                                    ],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                ),
+                                lineWidth: 1
+                            )
+                    )
+            )
+            .scaleEffect(isHovering ? 1.05 : 1.0)
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: 0.2)) {
+                isHovering = hovering
             }
         }
     }
@@ -524,6 +551,7 @@ struct GroupDetailPanel: View {
     @State private var urlFieldHover = false
     @State private var actualShareURL: String? = nil
     @State private var isLoadingShareURL = false
+    @State private var panelFrame: CGRect = .zero
     
     @AppStorage("currentGroupID") private var currentGroupID = ""
     @AppStorage("userName") private var storedUserName = ""
@@ -561,13 +589,16 @@ struct GroupDetailPanel: View {
                         Text(groupInfo.groupName)
                             .font(.system(size: 18, weight: .semibold))
                         
-                        HStack(spacing: 4) {
-                            Text("オーナー名：")
-                                .font(.system(size: 13))
-                                .foregroundColor(.secondary)
-                            Text(groupInfo.ownerName)
-                                .font(.system(size: 13, weight: .medium))
-                                .foregroundColor(.secondary)
+                        // オーナー以外の場合のみオーナー名を表示
+                        if userName != groupInfo.ownerName {
+                            HStack(spacing: 4) {
+                                Text("オーナー名：")
+                                    .font(.system(size: 13))
+                                    .foregroundColor(.secondary)
+                                Text(groupInfo.ownerName)
+                                    .font(.system(size: 13, weight: .medium))
+                                    .foregroundColor(.secondary)
+                            }
                         }
                     }
                 }
@@ -587,12 +618,24 @@ struct GroupDetailPanel: View {
             Divider()
             
             VStack(alignment: .leading, spacing: 16) {
-                InfoRow(
-                    icon: "person.fill",
-                    title: "あなたのユーザー名",
-                    value: userName,
-                    color: .blue
-                )
+                // オーナーかどうかで表示を変更
+                if userName == groupInfo.ownerName {
+                    // GroupDetailPanel内のInfoRow呼び出し部分を修正
+                    InfoRow(
+                        icon: "crown.fill",
+                        title: "あなたのユーザー名（オーナー）",
+                        value: userName,
+                        color: Color(red: 255/255, green: 204/255, blue: 102/255)  // オレンジに変更
+                    )
+                } else {
+                    // 通常メンバーの場合
+                    InfoRow(
+                        icon: "person.fill",
+                        title: "あなたのユーザー名",
+                        value: userName,
+                        color: Color(red: 255/255, green: 184/255, blue: 77/255)  // 少し濃いオレンジに変更
+                    )
+                }
             }
             
             VStack(alignment: .leading, spacing: 8) {
@@ -670,7 +713,8 @@ struct GroupDetailPanel: View {
             HStack(spacing: 12) {
                 ShareButton(
                     url: shareURL,
-                    showShareMenu: $showShareMenu
+                    showShareMenu: $showShareMenu,
+                    panelFrame: panelFrame
                 )
                 
                 Spacer()
@@ -724,23 +768,31 @@ struct GroupDetailPanel: View {
         .padding(24)
         .frame(width: 400)
         .background(
-            RoundedRectangle(cornerRadius: 20)
-                .fill(.regularMaterial)
-                .shadow(color: .black.opacity(0.15), radius: 20, x: 0, y: 10)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 20)
-                        .strokeBorder(
-                            LinearGradient(
-                                colors: [
-                                    Color.white.opacity(0.3),
-                                    Color.white.opacity(0.1)
-                                ],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            ),
-                            lineWidth: 1
-                        )
-                )
+            GeometryReader { geometry in
+                RoundedRectangle(cornerRadius: 20)
+                    .fill(.regularMaterial)
+                    .shadow(color: .black.opacity(0.15), radius: 20, x: 0, y: 10)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 20)
+                            .strokeBorder(
+                                LinearGradient(
+                                    colors: [
+                                        Color.white.opacity(0.3),
+                                        Color.white.opacity(0.1)
+                                    ],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                ),
+                                lineWidth: 1
+                            )
+                    )
+                    .onAppear {
+                        panelFrame = geometry.frame(in: .global)
+                    }
+                    .onChange(of: geometry.frame(in: .global)) { _, newFrame in
+                        panelFrame = newFrame
+                    }
+            }
         )
     }
     // 実際のCKShare URLを取得
@@ -836,6 +888,7 @@ struct InfoRow: View {
 struct ShareButton: View {
     let url: String
     @Binding var showShareMenu: Bool
+    let panelFrame: CGRect
     
     var body: some View {
         Button {
@@ -843,11 +896,25 @@ struct ShareButton: View {
                let window = NSApp.keyWindow ?? NSApplication.shared.windows.first {
                 let picker = NSSharingServicePicker(items: [shareURL])
                 
-                if let button = window.contentView?.subviews.first(where: { $0 is NSButton }) {
-                    picker.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
-                } else {
-                    picker.show(relativeTo: .zero, of: window.contentView!, preferredEdge: .maxY)
-                }
+                // パネルの右端の中央位置を計算
+                let windowFrame = window.frame
+                let panelRightX = panelFrame.maxX - windowFrame.origin.x
+                let panelCenterY = panelFrame.midY - windowFrame.origin.y
+                
+                // パネルの右側に小さな矩形を作成
+                let rect = NSRect(
+                    x: panelRightX + 10,
+                    y: panelCenterY - 1,
+                    width: 2,
+                    height: 2
+                )
+                
+                // パネルの右側（minX）に表示
+                picker.show(
+                    relativeTo: rect,
+                    of: window.contentView!,
+                    preferredEdge: .minX
+                )
             }
         } label: {
             HStack(spacing: 6) {
@@ -863,7 +930,10 @@ struct ShareButton: View {
                 Capsule()
                     .fill(
                         LinearGradient(
-                            colors: [Color.accentColor, Color.accentColor.opacity(0.8)],
+                            colors: [
+                                Color(red: 255/255, green: 204/255, blue: 102/255),
+                                Color(red: 255/255, green: 184/255, blue: 77/255)
+                            ],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         )

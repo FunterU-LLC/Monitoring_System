@@ -8,15 +8,24 @@ struct OnboardingView: View {
     @State private var animateGradient = false
     @State private var showContent = false
     @State private var floatingAnimation = false
+    @State private var buttonHovering = false
+    @State private var floatingCircles: [FloatingCircle] = [
+        FloatingCircle(relativeX: 0.1, relativeY: 0.2, size: 80, animationDuration: 4.0, animationDelay: 0.0),
+        FloatingCircle(relativeX: 0.8, relativeY: 0.3, size: 100, animationDuration: 5.0, animationDelay: 0.5),
+        FloatingCircle(relativeX: 0.3, relativeY: 0.7, size: 60, animationDuration: 3.5, animationDelay: 1.0),
+        FloatingCircle(relativeX: 0.9, relativeY: 0.8, size: 90, animationDuration: 4.5, animationDelay: 1.5),
+        FloatingCircle(relativeX: 0.5, relativeY: 0.5, size: 70, animationDuration: 6.0, animationDelay: 2.0)
+    ]
+    @State private var currentGeometrySize: CGSize = .zero
     
     var body: some View {
         ZStack {
-            // Animated gradient background
+            // Animated gradient background - オレンジ系に変更
             LinearGradient(
                 colors: [
-                    Color.accentColor.opacity(0.15),
-                    Color.purple.opacity(0.1),
-                    Color.blue.opacity(0.05)
+                    Color(red: 255/255, green: 224/255, blue: 153/255).opacity(0.15),
+                    Color(red: 255/255, green: 204/255, blue: 102/255).opacity(0.1),
+                    Color(red: 255/255, green: 184/255, blue: 77/255).opacity(0.05)
                 ],
                 startPoint: animateGradient ? .topLeading : .bottomTrailing,
                 endPoint: animateGradient ? .bottomTrailing : .topLeading
@@ -30,76 +39,85 @@ struct OnboardingView: View {
             
             // Floating background elements
             GeometryReader { geometry in
-                ForEach(0..<5) { index in
+                ForEach(floatingCircles.indices, id: \.self) { index in
                     Circle()
                         .fill(
                             LinearGradient(
                                 colors: [
-                                    Color.accentColor.opacity(0.3),
-                                    Color.blue.opacity(0.2)
+                                    Color(red: 255/255, green: 204/255, blue: 102/255).opacity(0.3),
+                                    Color(red: 255/255, green: 224/255, blue: 153/255).opacity(0.2)
                                 ],
                                 startPoint: .topLeading,
                                 endPoint: .bottomTrailing
                             )
                         )
-                        .frame(width: CGFloat.random(in: 50...150))
+                        .frame(width: floatingCircles[index].size, height: floatingCircles[index].size)
                         .blur(radius: 10)
                         .position(
-                            x: CGFloat.random(in: 0...geometry.size.width),
-                            y: CGFloat.random(in: 0...geometry.size.height)
+                            x: floatingCircles[index].relativeX * geometry.size.width,
+                            y: floatingCircles[index].relativeY * geometry.size.height + floatingCircles[index].offsetY
                         )
-                        .offset(y: floatingAnimation ? -20 : 20)
-                        .animation(
-                            .easeInOut(duration: Double.random(in: 3...6))
-                            .repeatForever(autoreverses: true)
-                            .delay(Double(index) * 0.5),
-                            value: floatingAnimation
-                        )
+                        .onAppear {
+                            withAnimation(
+                                .easeInOut(duration: floatingCircles[index].animationDuration)
+                                .repeatForever(autoreverses: true)
+                                .delay(floatingCircles[index].animationDelay)
+                            ) {
+                                floatingCircles[index].offsetY = floatingAnimation ? -20 : 20
+                            }
+                        }
                 }
             }
-            .onAppear {
-                floatingAnimation.toggle()
-            }
+            .drawingGroup() // パフォーマンス最適化
             
-            VStack(spacing: 40) {
+            VStack(spacing: 30) {  // 40から30に削減
                 // Logo and title section
-                VStack(spacing: 24) {
-                    ZStack {
-                        Circle()
-                            .fill(
-                                LinearGradient(
-                                    colors: [
-                                        Color.accentColor,
-                                        Color.purple
-                                    ],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
+                VStack(spacing: 20) {  // 24から20に削減
+                    // アプリアイコンの表示
+                    if let appIcon = NSImage(named: "AppIcon") {
+                        Image(nsImage: appIcon)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 100, height: 100)
+                            .clipShape(RoundedRectangle(cornerRadius: 20))
+                            .shadow(color: Color(red: 255/255, green: 204/255, blue: 102/255).opacity(0.5), radius: 20, x: 0, y: 10)
+                    } else {
+                        // フォールバック: アプリアイコンが見つからない場合
+                        ZStack {
+                            Circle()
+                                .fill(
+                                    LinearGradient(
+                                        colors: [
+                                            Color(red: 255/255, green: 204/255, blue: 102/255),
+                                            Color(red: 255/255, green: 184/255, blue: 77/255)
+                                        ],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
                                 )
-                            )
-                            .frame(width: 120, height: 120)
-                            .shadow(color: Color.accentColor.opacity(0.5), radius: 20, x: 0, y: 10)
-                        
-                        Image(systemName: "eye.fill")
-                            .font(.system(size: 60))
-                            .foregroundStyle(
-                                LinearGradient(
-                                    colors: [.white, .white.opacity(0.9)],
-                                    startPoint: .top,
-                                    endPoint: .bottom
+                                .frame(width: 100, height: 100)
+                                .shadow(color: Color(red: 255/255, green: 204/255, blue: 102/255).opacity(0.5), radius: 20, x: 0, y: 10)
+                            
+                            Image(systemName: "eye.fill")
+                                .font(.system(size: 50))
+                                .foregroundStyle(
+                                    LinearGradient(
+                                        colors: [.white, .white.opacity(0.9)],
+                                        startPoint: .top,
+                                        endPoint: .bottom
+                                    )
                                 )
-                            )
+                        }
                     }
-                    .scaleEffect(showContent ? 1 : 0.8)
-                    .opacity(showContent ? 1 : 0)
                     
-                    VStack(spacing: 8) {
+                    VStack(spacing: 6) {  // 8から6に削減
                         Text("RemoVision")
-                            .font(.system(size: 48, weight: .bold, design: .rounded))
+                            .font(.system(size: 42, weight: .bold, design: .rounded))  // 48から42に縮小
                             .foregroundStyle(
                                 LinearGradient(
                                     colors: [
-                                        Color.primary,
-                                        Color.primary.opacity(0.8)
+                                        Color(red: 92/255, green: 64/255, blue: 51/255),
+                                        Color(red: 92/255, green: 64/255, blue: 51/255).opacity(0.8)
                                     ],
                                     startPoint: .leading,
                                     endPoint: .trailing
@@ -107,83 +125,88 @@ struct OnboardingView: View {
                             )
                         
                         Text("チームの生産性を可視化")
-                            .font(.system(size: 20, weight: .medium))
+                            .font(.system(size: 18, weight: .medium))  // 20から18に縮小
                             .foregroundColor(.secondary)
                     }
                     .opacity(showContent ? 1 : 0)
                     .offset(y: showContent ? 0 : 20)
                 }
                 
-                // Feature cards
-                HStack(spacing: 20) {
+                // Feature cards - オレンジの濃淡で統一
+                HStack(spacing: 15) {  // 20から15に削減
                     FeatureCard(
                         icon: "person.3.fill",
                         title: "チーム管理",
                         description: "メンバーの作業状況をリアルタイムで共有",
-                        color: .blue
+                        color: Color(red: 255/255, green: 204/255, blue: 102/255)
                     )
                     
                     FeatureCard(
                         icon: "chart.bar.fill",
                         title: "分析機能",
                         description: "タスクごとの時間配分を詳細に分析",
-                        color: .purple
+                        color: Color(red: 255/255, green: 184/255, blue: 77/255)
                     )
                     
                     FeatureCard(
                         icon: "camera.fill",
                         title: "自動検知",
                         description: "顔認識による在席状況の自動記録",
-                        color: .green
+                        color: Color(red: 255/255, green: 164/255, blue: 51/255)
                     )
                 }
-                .padding(.horizontal)
                 .opacity(showContent ? 1 : 0)
                 .offset(y: showContent ? 0 : 40)
                 
                 // Action section
-                VStack(spacing: 16) {
+                VStack(spacing: 14) {
                     Text("始めましょう")
-                        .font(.system(size: 24, weight: .semibold))
-                        .foregroundColor(.primary)
+                        .font(.system(size: 22, weight: .semibold))
+                        .foregroundColor(Color(red: 92/255, green: 64/255, blue: 51/255))
                     
                     Text("グループを作成するか、招待URLから参加してください")
-                        .font(.system(size: 16))
+                        .font(.system(size: 15))
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
-                        .frame(maxWidth: 400)
+                        .frame(maxWidth: 350)
                     
                     Button {
                         showSheet = true
                     } label: {
-                        HStack(spacing: 12) {
+                        HStack(spacing: 10) {
                             Image(systemName: "plus.circle.fill")
-                                .font(.system(size: 20))
+                                .font(.system(size: 18))
                             Text("グループを作成")
-                                .font(.system(size: 16, weight: .semibold))
+                                .font(.system(size: 15, weight: .semibold))
                         }
                         .foregroundColor(.white)
-                        .padding(.horizontal, 32)
-                        .padding(.vertical, 16)
+                        .padding(.horizontal, 28)
+                        .padding(.vertical, 14)
                         .background(
                             LinearGradient(
                                 colors: [
-                                    Color.accentColor,
-                                    Color.accentColor.opacity(0.8)
+                                    Color(red: 255/255, green: 204/255, blue: 102/255),
+                                    Color(red: 255/255, green: 184/255, blue: 77/255)
                                 ],
                                 startPoint: .leading,
                                 endPoint: .trailing
                             )
                         )
                         .cornerRadius(12)
-                        .shadow(color: Color.accentColor.opacity(0.4), radius: 10, x: 0, y: 5)
+                        .shadow(color: buttonHovering ? Color(red: 255/255, green: 204/255, blue: 102/255).opacity(0.5) : Color(red: 255/255, green: 204/255, blue: 102/255).opacity(0.4), radius: buttonHovering ? 15 : 10, x: 0, y: buttonHovering ? 8 : 5)  // 変更
+                        .scaleEffect(buttonHovering ? 1.05 : 1)  // 追加
                     }
                     .buttonStyle(.plain)
                     .scaleEffect(showContent ? 1 : 0.9)
                     .opacity(showContent ? 1 : 0)
+                    .onHover { hovering in  // 追加
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                            buttonHovering = hovering
+                        }
+                    }
                 }
             }
-            .frame(minWidth: 800, minHeight: 600)
+            .frame(minWidth: 650, minHeight: 600)  // 800から650に変更
             .sheet(isPresented: $showSheet) {
                 GroupCreationSheet()
             }
@@ -193,6 +216,10 @@ struct OnboardingView: View {
                 showContent = true
             }
         }
+        .frame(minWidth: 800, minHeight: 600)
+        .sheet(isPresented: $showSheet) {
+            GroupCreationSheet()
+        }
     }
 }
 
@@ -201,12 +228,12 @@ struct FeatureCard: View {
     let title: String
     let description: String
     let color: Color
-    @State private var isHovering = false
+    // @State private var isHovering = false  // 削除
     
     var body: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: 14) {
             ZStack {
-                RoundedRectangle(cornerRadius: 16)
+                RoundedRectangle(cornerRadius: 14)
                     .fill(
                         LinearGradient(
                             colors: [
@@ -217,10 +244,10 @@ struct FeatureCard: View {
                             endPoint: .bottomTrailing
                         )
                     )
-                    .frame(width: 60, height: 60)
+                    .frame(width: 52, height: 52)
                 
                 Image(systemName: icon)
-                    .font(.system(size: 28))
+                    .font(.system(size: 24))
                     .foregroundStyle(
                         LinearGradient(
                             colors: [color, color.opacity(0.8)],
@@ -229,33 +256,33 @@ struct FeatureCard: View {
                         )
                     )
             }
-            .scaleEffect(isHovering ? 1.1 : 1)
+            // .scaleEffect(isHovering ? 1.1 : 1)  // 削除
             
-            VStack(spacing: 8) {
+            VStack(spacing: 6) {
                 Text(title)
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(.primary)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(Color(red: 92/255, green: 64/255, blue: 51/255))
                 
                 Text(description)
-                    .font(.system(size: 13))
+                    .font(.system(size: 12))
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .frame(width: 200, height: 160)
-        .padding(20)
+        .frame(width: 180, height: 145)
+        .padding(18)
         .background(
-            RoundedRectangle(cornerRadius: 20)
+            RoundedRectangle(cornerRadius: 18)
                 .fill(.ultraThinMaterial)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 20)
+                    RoundedRectangle(cornerRadius: 18)
                         .strokeBorder(
                             LinearGradient(
                                 colors: [
-                                    color.opacity(isHovering ? 0.5 : 0.2),
-                                    color.opacity(isHovering ? 0.3 : 0.1)
+                                    color.opacity(0.2),  // 固定値に変更
+                                    color.opacity(0.1)   // 固定値に変更
                                 ],
                                 startPoint: .topLeading,
                                 endPoint: .bottomTrailing
@@ -264,16 +291,22 @@ struct FeatureCard: View {
                         )
                 )
                 .shadow(
-                    color: color.opacity(isHovering ? 0.3 : 0.1),
-                    radius: isHovering ? 15 : 10,
+                    color: color.opacity(0.1),  // 固定値に変更
+                    radius: 10,                 // 固定値に変更
                     x: 0,
                     y: 5
                 )
         )
-        .onHover { hovering in
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                isHovering = hovering
-            }
-        }
     }
+}
+
+// 浮遊する背景要素のデータ構造
+struct FloatingCircle: Identifiable {
+    let id = UUID()
+    var relativeX: CGFloat  // 0.0〜1.0の相対位置
+    var relativeY: CGFloat  // 0.0〜1.0の相対位置
+    var size: CGFloat
+    var animationDuration: Double
+    var animationDelay: Double
+    var offsetY: CGFloat = 0  // アニメーション用のオフセット
 }

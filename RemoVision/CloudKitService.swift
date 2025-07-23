@@ -164,6 +164,7 @@ final class CloudKitService {
 
         let share = CKShare(rootRecord: groupRecord)
         share[CKShare.SystemFieldKey.title] = groupName as CKRecordValue
+        share["ownerName"] = ownerName as CKRecordValue
         share.publicPermission = .none
 
         let op = CKModifyRecordsOperation(
@@ -520,21 +521,41 @@ final class CloudKitService {
         
         try await ensureZone()
         
+        var memberNames: Set<String> = []
+        
+        // 1. まずグループレコードからオーナー名を取得
         let groupRecordID = CKRecord.ID(recordName: groupID, zoneID: Self.workZoneID)
+        let db = CKContainer.default().privateCloudDatabase
+        
+        do {
+            let groupRecord = try await db.record(for: groupRecordID)
+            if let ownerName = groupRecord["ownerName"] as? String {
+                memberNames.insert(ownerName)
+            }
+        } catch {
+            #if DEBUG
+            print("⚠️ グループレコード取得エラー（オーナー名取得）: \(error)")
+            #endif
+        }
+        
+        // 2. 既存のメンバーレコードを取得
         let groupRef = CKRecord.Reference(recordID: groupRecordID, action: .deleteSelf)
         
         let memberPredicate = NSPredicate(format: "groupRef == %@", groupRef)
         let memberQuery = CKQuery(recordType: RecordType.member, predicate: memberPredicate)
         memberQuery.sortDescriptors = [NSSortDescriptor(key: "userName", ascending: true)]
         
-        let db = CKContainer.default().privateCloudDatabase
         let memberRecords = try await performQuery(memberQuery, in: db)
         
-        let memberNames = memberRecords.compactMap { record in
+        let recordMemberNames = memberRecords.compactMap { record in
             record["userName"] as? String
         }
         
-        return memberNames
+        // 3. セットに追加（重複を自動的に除外）
+        recordMemberNames.forEach { memberNames.insert($0) }
+        
+        // 4. ソートして返す
+        return Array(memberNames).sorted()
     }
     
     func fetchUserSummaries(groupID: String, userName: String, forDays days: Int) async throws -> ([TaskUsageSummary], Int) {

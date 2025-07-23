@@ -9,6 +9,7 @@ struct WorkInProgressView: View {
     @Environment(AppUsageManager.self) var appUsageManager
     
     @State private var isCancelDefault: Bool = true
+    @State private var hierarchicalTasks: [HierarchicalTask] = []
     
     let selectedTaskIds: [String]
         
@@ -41,21 +42,46 @@ struct WorkInProgressView: View {
                     Text("作業中のタスク")
                         .font(.headline)
                     
-                    if selectedTasks.isEmpty {
+                    if hierarchicalTasks.isEmpty {
                         Text("現在、作業中のタスクはありません。")
                             .foregroundColor(.secondary)
                     } else {
-                        ForEach(selectedTasks) { task in
-                            HStack {
-                                Text(task.title)
-                                Spacer()
-                                if let due = task.dueDate {
-                                    Text(due, style: .date)
-                                        .font(.caption)
-                                        .foregroundColor(.gray)
+                        ForEach(hierarchicalTasks) { hierarchicalTask in
+                            VStack(alignment: .leading, spacing: 2) {
+                                // 親タスク
+                                HStack {
+                                    Text("▼ \(String(hierarchicalTask.task.title.dropFirst()))")
+                                        .fontWeight(.semibold)
+                                        .foregroundColor(Color(red: 92/255, green: 64/255, blue: 51/255))
+                                    
+                                    Spacer()
+                                    
+                                    if let due = hierarchicalTask.task.dueDate {
+                                        Text(due, style: .date)
+                                            .font(.caption)
+                                            .foregroundColor(.gray)
+                                    }
+                                }
+                                .padding(.vertical, 2)
+                                
+                                // 子タスク
+                                ForEach(hierarchicalTask.children) { childTask in
+                                    HStack {
+                                        Text("　　・\(childTask.title)")
+                                            .font(.system(size: 13))
+                                            .foregroundColor(.secondary)
+                                        
+                                        Spacer()
+                                        
+                                        if let due = childTask.dueDate {
+                                            Text(due, style: .date)
+                                                .font(.caption2)
+                                                .foregroundColor(.gray)
+                                        }
+                                    }
+                                    .padding(.vertical, 2)
                                 }
                             }
-                            .padding(.vertical, 2)
                         }
                     }
                 }
@@ -157,7 +183,46 @@ struct WorkInProgressView: View {
 
     private func updateSelectedTasks() {
         selectedTasks = remindersManager.tasks.filter { selectedTaskIds.contains($0.id) }
+        buildHierarchicalStructure()
+    }
+    
+    private func buildHierarchicalStructure() {
+        var result: [HierarchicalTask] = []
+        var currentParent: HierarchicalTask? = nil
+        var childrenBuffer: [TaskItem] = []
+        
+        for task in selectedTasks {
+            if task.title.hasPrefix("&") {
+                if let parent = currentParent {
+                    result.append(HierarchicalTask(
+                        id: parent.id,
+                        task: parent.task,
+                        isParent: true,
+                        children: childrenBuffer
+                    ))
+                }
+                
+                currentParent = HierarchicalTask(
+                    id: task.id,
+                    task: task,
+                    isParent: true,
+                    children: []
+                )
+                childrenBuffer = []
+            } else {
+                childrenBuffer.append(task)
+            }
+        }
+        
+        if let parent = currentParent {
+            result.append(HierarchicalTask(
+                id: parent.id,
+                task: parent.task,
+                isParent: true,
+                children: childrenBuffer
+            ))
+        }
+        
+        hierarchicalTasks = result
     }
 }
-
-

@@ -14,10 +14,16 @@ struct FinishTaskPopupView: View {
     
     @State private var tasksToFinish: [TaskItem] = []
     @State private var completedTasks: Set<String> = []
-    @State private var comments: [String: String] = [:]
+//    @State private var comments: [String: String] = [:]
     
     @State private var currentIndex: Int = 0
     @State private var pressedIndex: Int? = nil
+    
+    @State private var hierarchicalTasks: [HierarchicalTask] = []
+    @State private var expandedParents: Set<String> = []
+    
+    @FocusState private var focusedTaskId: String?
+    @State private var taskComments: [String: String] = [:]
 
     var body: some View {
         VStack {
@@ -30,66 +36,36 @@ struct FinishTaskPopupView: View {
             
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    ForEach(Array(tasksToFinish.enumerated()), id: \.element.id) { i, task in
-                        
-                        Button(action: {
-                            toggleSelection(task.id)
-                        }) {
-                            HStack {
-                                if completedTasks.contains(task.id) {
-                                    Image(systemName: "checkmark.square.fill")
-                                        .symbolRenderingMode(.palette)
-                                        .foregroundStyle(.white, .blue)
-                                } else {
-                                    Image(systemName: "square")
-                                        .symbolRenderingMode(.monochrome)
-                                        .foregroundColor(.primary)
-                                }
-                                VStack(alignment: .leading) {
-                                    Text(task.title)
-                                    if let dueDate = task.dueDate {
-                                        Text("期限: \(dueDate, style: .date)")
-                                            .font(.caption)
-                                    }
-                                }
-                                Spacer()
-                            }
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 4)
-                            .background(i == currentIndex ? Color.gray.opacity(0.2) : Color.clear)
-                        }
-                        .buttonStyle(HoverPressButtonStyle(overrideIsPressed: (i == pressedIndex)))
-                        .onHover { inside in
-                            if inside {
-                                currentIndex = i
-                            }
-                        }
-                        .transition(.slide)
-
-                        Divider()
-                        TextEditor(
-                            text: Binding(
-                                get: { comments[task.id, default: ""] },
-                                set: { comments[task.id] = $0 }
+                    ForEach(hierarchicalTasks, id: \.id) { hierarchicalTask in
+                        VStack(alignment: .leading, spacing: 0) {
+                            // 親タスクまたは独立したタスク
+                            hierarchicalTaskRow(
+                                task: hierarchicalTask.task,
+                                isParent: hierarchicalTask.isParent,
+                                children: hierarchicalTask.children
                             )
-                        )
-                        .frame(height: 70)
-                        .border(Color.gray.opacity(0.4))
-                        .overlay(
-                            Group {
-                                if comments[task.id, default: ""].isEmpty {
-                                    Text("コメントを入力してください(任意)")
-                                        .foregroundColor(.secondary)
-                                        .padding(.leading, 6)
-                                        .padding(.top, 8)
+                            
+                            // 子タスク（展開されている場合のみ）
+                            if hierarchicalTask.isParent && expandedParents.contains(hierarchicalTask.id) {
+                                ForEach(hierarchicalTask.children) { childTask in
+                                    hierarchicalTaskRow(
+                                        task: childTask,
+                                        isParent: false,
+                                        children: [],
+                                        isChild: true
+                                    )
                                 }
-                            },
-                            alignment: .topLeading
-                        )
-                        .padding(.bottom, 8)
+                            }
+                        }
                     }
                 }
-                .animation(.easeInOut, value: tasksToFinish.map(\.id))
+                .animation(.easeInOut(duration: 0.3), value: expandedParents)
+                .onTapGesture {
+                    // 背景タップでフォーカスを解除
+                    if focusedTaskId != nil {
+                        focusedTaskId = nil
+                    }
+                }
                 .padding(.horizontal, 8)
             }
             .frame(minHeight: 200)
@@ -106,17 +82,31 @@ struct FinishTaskPopupView: View {
                     let totalRecognized = faceRecognitionManager.endRecognitionSession()
                     let usageDict = appUsageManager.snapshotRecognizedUsage()
 
+                    // 親タスクを除外して子タスクのみをカウント
+                    let childTasks = tasksToFinish.filter { !$0.title.hasPrefix("&") }
                     let perTaskSeconds: Double = {
-                        if tasksToFinish.isEmpty { 0 } else { totalRecognized / Double(tasksToFinish.count) }
+                        if childTasks.isEmpty { 0 } else { totalRecognized / Double(childTasks.count) }
                     }()
                     let now = Date()
                     let summaries: [TaskUsageSummary] = tasksToFinish.map { task in
                         let isDone = completedTasks.contains(task.id)
-                        let st = now.addingTimeInterval(-perTaskSeconds)
-                        let note = comments[task.id]
-                        let apps: [AppUsage] = usageDict.isEmpty
-                            ? appUsageManager.currentRecognizedAppUsageArray()
-                            : usageDict.map { AppUsage(name: $0.key, seconds: $0.value / Double(max(tasksToFinish.count,1))) }
+                        let note = taskComments[task.id]
+                        
+                        // 親タスクの場合は時間を0に
+                        let isParentTask = task.title.hasPrefix("&")
+                        let taskSeconds = isParentTask ? 0 : perTaskSeconds
+                        let st = now.addingTimeInterval(-taskSeconds)
+                        
+                        let apps: [AppUsage] = {
+                            if isParentTask {
+                                return [] // 親タスクにはアプリ使用状況を記録しない
+                            } else if usageDict.isEmpty {
+                                return appUsageManager.currentRecognizedAppUsageArray()
+                                    .map { AppUsage(name: $0.name, seconds: $0.seconds / Double(max(childTasks.count, 1))) }
+                            } else {
+                                return usageDict.map { AppUsage(name: $0.key, seconds: $0.value / Double(max(childTasks.count, 1))) }
+                            }
+                        }()
 
                         let totalSec = apps.reduce(0) { $0 + $1.seconds }
 
@@ -139,7 +129,7 @@ struct FinishTaskPopupView: View {
                     appUsageManager.clearRecognizedUsage()
 
                     for task in tasksToFinish {
-                        if let note = comments[task.id], !note.isEmpty {
+                        if let note = taskComments[task.id], !note.isEmpty {
                             remindersManager.updateTask(task, completed: false, notes: note)
                         }
                     }
@@ -174,33 +164,44 @@ struct FinishTaskPopupView: View {
                     
                     for task in tasksToFinish {
                         let isDone = completedTasks.contains(task.id)
-                        let note   = comments[task.id]
+                        let note   = taskComments[task.id]
                         remindersManager.updateTask(task, completed: isDone, notes: note)
                     }
                     
                     faceRecognitionManager.stopCamera()
                     
+                    // 親タスクを除外して子タスクのみをカウント
+                    let childTasks = tasksToFinish.filter { !$0.title.hasPrefix("&") }
                     let perTaskSeconds: Double = {
-                        if totalRecognized > 0 {
-                            return totalRecognized / Double(max(tasksToFinish.count, 1))
+                        if childTasks.isEmpty {
+                            return 0
+                        } else if totalRecognized > 0 {
+                            return totalRecognized / Double(childTasks.count)
                         } else {
-                            return totalAppSeconds / Double(max(tasksToFinish.count, 1))
+                            return totalAppSeconds / Double(childTasks.count)
                         }
                     }()
 
                     let now = Date()
                     let summaries: [TaskUsageSummary] = tasksToFinish.map { task in
                         let isDone = completedTasks.contains(task.id)
+                        let note = taskComments[task.id]
                         
-                        let note = comments[task.id]
+                        // 親タスクの場合は時間を0に
+                        let isParentTask = task.title.hasPrefix("&")
+                        let taskSeconds = isParentTask ? 0 : perTaskSeconds
+                        let start = now.addingTimeInterval(-taskSeconds)
+                        
                         let apps: [AppUsage] = {
-                            if !usageDict.isEmpty {
+                            if isParentTask {
+                                return [] // 親タスクにはアプリ使用状況を記録しない
+                            } else if !usageDict.isEmpty {
                                 return usageDict.map { name, sec in
                                     let seconds: Double
                                     if totalRecognized > 0 && totalAppSeconds > 0 {
                                         seconds = (sec / totalAppSeconds) * perTaskSeconds
                                     } else {
-                                        seconds = sec / Double(max(tasksToFinish.count, 1))
+                                        seconds = sec / Double(max(childTasks.count, 1))
                                     }
                                     return AppUsage(name: name, seconds: seconds)
                                 }
@@ -208,13 +209,12 @@ struct FinishTaskPopupView: View {
                                 let current = appUsageManager.currentRecognizedAppUsageArray()
                                 return current.map { app in
                                     AppUsage(name: app.name,
-                                             seconds: app.seconds / Double(max(tasksToFinish.count, 1)))
+                                             seconds: app.seconds / Double(max(childTasks.count, 1)))
                                 }
                             }
                         }()
 
                         let totalSec = apps.reduce(0) { $0 + $1.seconds }
-                        let start   = now.addingTimeInterval(-perTaskSeconds)
 
                         return TaskUsageSummary(
                             reminderId:  task.id,
@@ -252,11 +252,22 @@ struct FinishTaskPopupView: View {
             }
             .allowsHitTesting(false)
         )
-        
+
+        // onAppearで初期化
         .onAppear {
             remindersManager.fetchTasks(for: remindersManager.selectedList) { updatedTasks in
                 DispatchQueue.main.async {
                     tasksToFinish = updatedTasks.filter { selectedTaskIds.contains($0.id) }
+                    
+                    // 既存のコメントを新しい辞書にコピー
+                    var newComments: [String: String] = [:]
+                    for task in tasksToFinish {
+                        newComments[task.id] = taskComments[task.id] ?? ""
+                    }
+                    taskComments = newComments
+                    
+                    buildHierarchicalStructure()
+                    
                     if !tasksToFinish.isEmpty {
                         currentIndex = 0
                     }
@@ -359,11 +370,224 @@ struct FinishTaskPopupView: View {
             currentIndex += 1
         }
     }
+    
+    private func buildHierarchicalStructure() {
+        var result: [HierarchicalTask] = []
+        var currentParent: HierarchicalTask? = nil
+        var childrenBuffer: [TaskItem] = []
+        
+        for task in tasksToFinish {
+            if task.title.hasPrefix("&") {
+                if let parent = currentParent {
+                    result.append(HierarchicalTask(
+                        id: parent.id,
+                        task: parent.task,
+                        isParent: true,
+                        children: childrenBuffer
+                    ))
+                }
+                
+                currentParent = HierarchicalTask(
+                    id: task.id,
+                    task: task,
+                    isParent: true,
+                    children: []
+                )
+                childrenBuffer = []
+            } else {
+                childrenBuffer.append(task)
+            }
+        }
+        
+        if let parent = currentParent {
+            result.append(HierarchicalTask(
+                id: parent.id,
+                task: parent.task,
+                isParent: true,
+                children: childrenBuffer
+            ))
+        }
+        
+        hierarchicalTasks = result
+        expandedParents = Set(result.filter { $0.isParent }.map { $0.id })
+    }
+    
+    private func hierarchicalTaskRow(task: TaskItem, isParent: Bool, children: [TaskItem], isChild: Bool = false) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // 行全体をボタン化
+            Button {
+                if isParent {
+                    toggleParentAndChildren(task.id, children: children)
+                } else {
+                    toggleSelection(task.id)
+                }
+            } label: {
+                HStack(spacing: 0) {
+                    // インデント
+                    if isChild {
+                        Spacer()
+                            .frame(width: 24)
+                    }
+                    
+                    // 展開/折りたたみボタン（親タスクのみ）
+                    if isParent {
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                if expandedParents.contains(task.id) {
+                                    expandedParents.remove(task.id)
+                                } else {
+                                    expandedParents.insert(task.id)
+                                }
+                            }
+                        } label: {
+                            Image(systemName: expandedParents.contains(task.id) ? "chevron.down" : "chevron.right")
+                                .font(.system(size: 12))
+                                .foregroundColor(.secondary)
+                                .frame(width: 20, height: 20)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    } else {
+                        Spacer()
+                            .frame(width: 20)
+                    }
+                    
+                    // チェックボックス
+                    Image(systemName: completedTasks.contains(task.id) ? "checkmark.square.fill" : "square")
+                        .symbolRenderingMode(.palette)
+                        .foregroundStyle(completedTasks.contains(task.id) ? .white : .primary,
+                                       completedTasks.contains(task.id) ? .blue : .clear)
+                        .padding(.leading, 8)
+                    
+                    // タスク内容
+                    VStack(alignment: .leading) {
+                        Text(isParent ? "▼ \(String(task.title.dropFirst()))" : "・\(task.title)")
+                            .fontWeight(isParent ? .semibold : .regular)
+                            .foregroundColor(isParent ? Color(red: 92/255, green: 64/255, blue: 51/255) : .primary)
+                        
+                        if let dueDate = task.dueDate {
+                            Text("期限: \(dueDate, style: .date)")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    .padding(.leading, 8)
+                    
+                    Spacer()
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 6)
+                .padding(.horizontal, 8)
+                .background(
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(isParent ? Color(red: 255/255, green: 204/255, blue: 102/255).opacity(0.1) : Color.clear)
+                )
+                .contentShape(Rectangle()) // 行全体をクリック可能にする
+            }
+            .buttonStyle(.plain)
+            .background(
+                Rectangle()
+                    .fill(Color.gray.opacity(0.01))
+                    .onHover { hovering in
+                        if hovering {
+                            NSCursor.pointingHand.push()
+                        } else {
+                            NSCursor.pop()
+                        }
+                    }
+            )
+            
+            Divider()
+            
+            // コメント入力欄（親タスク以外のみ表示）
+            if !isParent {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("コメント")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .padding(.leading, isChild ? 44 : 0)
+                    
+                    // TextFieldを使用（複数行対応）
+                    TextField("コメントを入力してください(任意)", text: Binding(
+                        get: { taskComments[task.id] ?? "" },
+                        set: { newValue in
+                            taskComments[task.id] = newValue
+                        }
+                    ), axis: .vertical)
+                    .textFieldStyle(.plain)
+                    .lineLimit(3...5)
+                    .font(.system(size: 13))
+                    .padding(8)
+                    .background(
+                        RoundedRectangle(cornerRadius: 6)
+                            .fill(Color.gray.opacity(0.05))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 6)
+                                    .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                            )
+                    )
+                    .frame(minHeight: 70)
+                    .padding(.leading, isChild ? 44 : 0)
+                }
+                .padding(.bottom, 8)
+            }
+        }
+    }
+    
+    private func toggleParentAndChildren(_ parentId: String, children: [TaskItem]) {
+        if completedTasks.contains(parentId) {
+            // 親タスクとすべての子タスクのチェックを外す
+            completedTasks.remove(parentId)
+            for child in children {
+                completedTasks.remove(child.id)
+            }
+        } else {
+            // 親タスクとすべての子タスクにチェックを入れる
+            completedTasks.insert(parentId)
+            for child in children {
+                completedTasks.insert(child.id)
+            }
+        }
+    }
+    
     private func toggleSelection(_ id: String) {
         if completedTasks.contains(id) {
             completedTasks.remove(id)
+            
+            // 子タスクの場合、すべての子タスクの選択が解除されたら親タスクも解除
+            if let parent = findParentTask(for: id) {
+                let anyChildSelected = parent.children.contains { completedTasks.contains($0.id) }
+                if !anyChildSelected {
+                    completedTasks.remove(parent.id)
+                }
+            }
         } else {
             completedTasks.insert(id)
+            
+            // 子タスクの場合、親タスクも自動的に選択
+            if let parent = findParentTask(for: id) {
+                completedTasks.insert(parent.id)
+            }
         }
+    }
+
+    // 子タスクの親を探すヘルパーメソッド
+    private func findParentTask(for childId: String) -> HierarchicalTask? {
+        return hierarchicalTasks.first { hierarchicalTask in
+            hierarchicalTask.isParent && hierarchicalTask.children.contains { $0.id == childId }
+        }
+    }
+}
+
+extension Binding where Value == String? {
+    var bound: Binding<String> {
+        Binding<String>(
+            get: {
+                self.wrappedValue ?? ""
+            },
+            set: { newValue in
+                self.wrappedValue = newValue
+            }
+        )
     }
 }
