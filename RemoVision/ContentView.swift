@@ -225,7 +225,7 @@ struct ContentView: View {
                         .buttonStyle(.borderedProminent)
                         .tint(.red)
                         .padding(.bottom, 8)
-                        #endif
+                        #endif  
                     }
                     Spacer().frame(height: 12)
                 }

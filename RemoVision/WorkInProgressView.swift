@@ -11,6 +11,8 @@ struct WorkInProgressView: View {
     @State private var isCancelDefault: Bool = true
     @State private var hierarchicalTasks: [HierarchicalTask] = []
     
+    @Environment(\.colorScheme) var colorScheme
+    
     let selectedTaskIds: [String]
         
     init(selectedTaskIds: [String]) {
@@ -27,38 +29,47 @@ struct WorkInProgressView: View {
         VStack {
             Text("作業中")
                 .font(.largeTitle)
+                .foregroundColor(colorScheme == .dark ?
+                    Color(red: 255/255, green: 224/255, blue: 153/255) :
+                    Color(red: 92/255, green: 64/255, blue: 51/255))
                 .padding(.top, 16)
-            
+
             if faceRecognitionManager.isFaceDetected {
                 Text("顔を認識しています")
-                    .foregroundColor(.green)
+                    .foregroundColor(colorScheme == .dark ? .green.opacity(0.9) : .green)
             } else {
                 Text("顔が認識されていません")
-                    .foregroundColor(.red)
+                    .foregroundColor(colorScheme == .dark ?
+                        Color(red: 255/255, green: 99/255, blue: 71/255) : .red)
             }
             
             ScrollView {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("作業中のタスク")
                         .font(.headline)
+                        .foregroundColor(colorScheme == .dark ?
+                            Color(red: 255/255, green: 224/255, blue: 153/255) :
+                            Color(red: 92/255, green: 64/255, blue: 51/255))
                     
                     if hierarchicalTasks.isEmpty {
                         Text("現在、作業中のタスクはありません。")
-                            .foregroundColor(.secondary)
+                            .foregroundColor(colorScheme == .dark ? .white.opacity(0.7) : .secondary)
                     } else {
                         ForEach(hierarchicalTasks) { hierarchicalTask in
                             VStack(alignment: .leading, spacing: 2) {
                                 HStack {
                                     Text("▼ \(String(hierarchicalTask.task.title.dropFirst()))")
                                         .fontWeight(.semibold)
-                                        .foregroundColor(Color(red: 92/255, green: 64/255, blue: 51/255))
+                                        .foregroundColor(colorScheme == .dark ?
+                                            Color(red: 255/255, green: 224/255, blue: 153/255) :
+                                            Color(red: 92/255, green: 64/255, blue: 51/255))
                                     
                                     Spacer()
                                     
                                     if let due = hierarchicalTask.task.dueDate {
                                         Text(due, style: .date)
                                             .font(.caption)
-                                            .foregroundColor(.gray)
+                                            .foregroundColor(colorScheme == .dark ? .white.opacity(0.6) : .gray)
                                     }
                                 }
                                 .padding(.vertical, 2)
@@ -67,14 +78,14 @@ struct WorkInProgressView: View {
                                     HStack {
                                         Text("　　・\(childTask.title)")
                                             .font(.system(size: 13))
-                                            .foregroundColor(.secondary)
+                                            .foregroundColor(colorScheme == .dark ? .white.opacity(0.7) : .secondary)
                                         
                                         Spacer()
                                         
                                         if let due = childTask.dueDate {
                                             Text(due, style: .date)
-                                                .font(.caption2)
-                                                .foregroundColor(.gray)
+                                                .font(.caption)
+                                                .foregroundColor(colorScheme == .dark ? .white.opacity(0.6) : .gray)
                                         }
                                     }
                                     .padding(.vertical, 2)
@@ -131,8 +142,11 @@ struct WorkInProgressView: View {
                         Text("注意")
                             .font(.title)
                             .fontWeight(.bold)
+                            .foregroundColor(colorScheme == .dark ? .white : .primary)
+
                         Text("作業時間が破棄されます。よろしいですか。")
-                            .foregroundColor(.red)
+                            .foregroundColor(colorScheme == .dark ?
+                                Color(red: 255/255, green: 99/255, blue: 71/255) : .red)
 
                         HStack {
                             Button("キャンセル") {

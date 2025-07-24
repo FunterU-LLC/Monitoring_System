@@ -23,15 +23,20 @@ struct FinishTaskPopupView: View {
     
     @FocusState private var focusedTaskId: String?
     @State private var taskComments: [String: String] = [:]
+    @Environment(\.colorScheme) var colorScheme
 
     var body: some View {
         VStack {
             
             Text("作業完了するタスクを選択")
                 .font(.headline)
+                .foregroundColor(colorScheme == .dark ?
+                    Color(red: 255/255, green: 224/255, blue: 153/255) :
+                    Color(red: 92/255, green: 64/255, blue: 51/255))
+
             Text("未達成のタスクでもコメントを入力できます")
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundColor(colorScheme == .dark ? .white.opacity(0.7) : .secondary)
             
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
@@ -169,7 +174,7 @@ struct FinishTaskPopupView: View {
                     popupCoordinator.showWorkInProgress = false
                     popupCoordinator.showTaskStartPopup = false
                 }
-                
+                .foregroundColor(colorScheme == .dark ? .white : .primary)
                 .disabled(!completedTasks.isEmpty)
                 .padding()
                 
@@ -271,7 +276,7 @@ struct FinishTaskPopupView: View {
                     popupCoordinator.showWorkInProgress = false
                     popupCoordinator.showTaskStartPopup = false
                 }
-                
+                .foregroundColor(colorScheme == .dark ? .white : .primary)
                 .disabled(completedTasks.isEmpty)
                 .padding()
             }
@@ -507,12 +512,16 @@ struct FinishTaskPopupView: View {
                     VStack(alignment: .leading) {
                         Text(isParent ? "▼ \(String(task.title.dropFirst()))" : "・\(task.title)")
                             .fontWeight(isParent ? .semibold : .regular)
-                            .foregroundColor(isParent ? Color(red: 92/255, green: 64/255, blue: 51/255) : .primary)
-                        
+                            .foregroundColor(isParent ?
+                                (colorScheme == .dark ?
+                                    Color(red: 255/255, green: 224/255, blue: 153/255) :
+                                    Color(red: 92/255, green: 64/255, blue: 51/255)) :
+                                (colorScheme == .dark ? .white : .primary))
+
                         if let dueDate = task.dueDate {
                             Text("期限: \(dueDate, style: .date)")
                                 .font(.caption)
-                                .foregroundColor(.secondary)
+                                .foregroundColor(colorScheme == .dark ? .white.opacity(0.7) : .secondary)
                         }
                     }
                     .padding(.leading, 8)
@@ -547,7 +556,7 @@ struct FinishTaskPopupView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("コメント")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(colorScheme == .dark ? .white.opacity(0.7) : .secondary)
                         .padding(.leading, isChild ? 44 : 0)
                     
                     TextField("コメントを入力してください(任意)", text: Binding(
@@ -562,10 +571,10 @@ struct FinishTaskPopupView: View {
                     .padding(8)
                     .background(
                         RoundedRectangle(cornerRadius: 6)
-                            .fill(Color.gray.opacity(0.05))
+                            .fill(Color.gray.opacity(colorScheme == .dark ? 0.2 : 0.05))
                             .overlay(
                                 RoundedRectangle(cornerRadius: 6)
-                                    .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                                    .stroke(Color.gray.opacity(colorScheme == .dark ? 0.3 : 0.2), lineWidth: 1)
                             )
                     )
                     .frame(minHeight: 70)

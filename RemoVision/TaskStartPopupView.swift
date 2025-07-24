@@ -26,6 +26,8 @@ struct TaskStartPopupView: View {
     @State private var hierarchicalTasks: [HierarchicalTask] = []
     @State private var expandedParents: Set<String> = []
     @State private var pressedTaskId: String? = nil
+    
+    @Environment(\.colorScheme) var colorScheme
 
     var body: some View {
         VStack(alignment: .leading) {
@@ -99,6 +101,9 @@ struct TaskStartPopupView: View {
         VStack(alignment: .leading) {
             Text("リスト選択")
                 .font(.headline)
+                .foregroundColor(colorScheme == .dark ?
+                    Color(red: 255/255, green: 224/255, blue: 153/255) :
+                    Color(red: 92/255, green: 64/255, blue: 51/255))
 
             listPickerView
         }
@@ -134,6 +139,9 @@ struct TaskStartPopupView: View {
         VStack(alignment: .leading) {
             Text("タスク一覧")
                 .font(.headline)
+                .foregroundColor(colorScheme == .dark ?
+                    Color(red: 255/255, green: 224/255, blue: 153/255) :
+                    Color(red: 92/255, green: 64/255, blue: 51/255))
 
             taskScrollView
         }
@@ -219,12 +227,16 @@ struct TaskStartPopupView: View {
                 VStack(alignment: .leading) {
                     Text(isParent ? String(task.title.dropFirst()) : task.title)
                         .fontWeight(isParent ? .semibold : .regular)
-                        .foregroundColor(isParent ? Color(red: 92/255, green: 64/255, blue: 51/255) : .primary)
-                    
+                        .foregroundColor(isParent ?
+                            (colorScheme == .dark ?
+                                Color(red: 255/255, green: 224/255, blue: 153/255) :
+                                Color(red: 92/255, green: 64/255, blue: 51/255)) :
+                            (colorScheme == .dark ? .white : .primary))
+
                     if let dueDate = task.dueDate {
                         Text("期限: \(dueDate, style: .date)")
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundColor(colorScheme == .dark ? .white.opacity(0.7) : .secondary)
                     }
                 }
                 .padding(.leading, 8)
@@ -380,9 +392,11 @@ struct TaskStartPopupView: View {
                         Text("確認")
                             .font(.title)
                             .fontWeight(.bold)
+                            .foregroundColor(colorScheme == .dark ? .white : .primary)
                         
                         Text("以下のタスクを本当に削除しますか？")
-                            .foregroundColor(.red)
+                            .foregroundColor(colorScheme == .dark ?
+                                Color(red: 255/255, green: 99/255, blue: 71/255) : .red)
                         
                         deleteTasksListView
                         
@@ -406,13 +420,15 @@ struct TaskStartPopupView: View {
                             if hierarchicalTask.isParent {
                                 Text("▼ \(String(hierarchicalTask.task.title.dropFirst()))")
                                     .fontWeight(.semibold)
-                                    .foregroundColor(Color(red: 92/255, green: 64/255, blue: 51/255))
+                                    .foregroundColor(colorScheme == .dark ?
+                                        Color(red: 255/255, green: 224/255, blue: 153/255) :
+                                        Color(red: 92/255, green: 64/255, blue: 51/255))
                                 
                                 ForEach(hierarchicalTask.children) { childTask in
                                     if selectedTaskIds.contains(childTask.id) {
                                         Text("　　・\(childTask.title)")
                                             .font(.system(size: 13))
-                                            .foregroundColor(.secondary)
+                                            .foregroundColor(colorScheme == .dark ? .white.opacity(0.7) : .secondary)
                                     }
                                 }
                             } else {
@@ -472,9 +488,12 @@ struct TaskStartPopupView: View {
                         Text("確認")
                             .font(.title)
                             .fontWeight(.bold)
+                            .foregroundColor(colorScheme == .dark ? .white : .primary)
                         
                         Text("以下のタスクを開始します。よろしいですか？")
-                            .foregroundColor(.red)
+                            .foregroundColor(colorScheme == .dark ?
+                                Color(red: 255/255, green: 224/255, blue: 153/255) :
+                                Color(red: 92/255, green: 64/255, blue: 51/255))
                         
                         startTasksListView
                         
@@ -496,14 +515,16 @@ struct TaskStartPopupView: View {
                     if selectedTaskIds.contains(hierarchicalTask.task.id) {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("▼ \(String(hierarchicalTask.task.title.dropFirst()))")
-                                .fontWeight(.semibold)
-                                .foregroundColor(Color(red: 92/255, green: 64/255, blue: 51/255))
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(colorScheme == .dark ?
+                                        Color(red: 255/255, green: 224/255, blue: 153/255) :
+                                        Color(red: 92/255, green: 64/255, blue: 51/255))
                             
                             ForEach(hierarchicalTask.children) { childTask in
                                 if selectedTaskIds.contains(childTask.id) {
                                     Text("　　・\(childTask.title)")
                                         .font(.system(size: 13))
-                                        .foregroundColor(.secondary)
+                                        .foregroundColor(colorScheme == .dark ? .white.opacity(0.7) : .secondary)
                                 }
                             }
                         }
