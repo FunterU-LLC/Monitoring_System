@@ -12,10 +12,6 @@
     <array>
         <string>applinks:www.icloud.com</string>
     </array>
-    <!-- ⚠️ 重要: App Storeリリース前に以下の3行を削除してください -->
-    <key>com.apple.developer.icloud-container-environment</key>
-    <string>Development</string>
-    <!-- ⚠️ ここまで削除 -->
     <key>com.apple.developer.icloud-container-identifiers</key>
     <array>
         <string>iCloud.FunterU.MonitoringSystem</string>

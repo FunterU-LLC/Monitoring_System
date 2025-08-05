@@ -351,6 +351,51 @@ struct ContentView: View {
     }
     
     private func fetchGroupInfoFromCloudKit(groupID: String) async {
+        // パブリックデータベースモードの場合の処理を追加
+        if usePublicDatabase {
+            let db = CKContainer.default().publicCloudDatabase
+            let groupRecordID = CKRecord.ID(recordName: groupID)
+            
+            do {
+                let record = try await db.record(for: groupRecordID)
+                
+                let groupName = record["groupName"] as? String ?? "Unknown Group"
+                let ownerName = record["ownerName"] as? String ?? "Unknown Owner"
+                
+                await MainActor.run {
+                    GroupInfoStore.shared.groupInfo = GroupInfo(
+                        groupName: groupName,
+                        ownerName: ownerName,
+                        recordID: groupID
+                    )
+                }
+            } catch {
+                await MainActor.run {
+                    // グループ情報が取得できない場合でも、currentGroupIDがあればエラーを表示しない
+                    if !currentGroupID.isEmpty {
+                        // グループ情報をダミーで設定（実際の情報は後で取得される）
+                        GroupInfoStore.shared.groupInfo = GroupInfo(
+                            groupName: "グループ",
+                            ownerName: "取得中...",
+                            recordID: groupID
+                        )
+                    } else {
+                        // currentGroupIDが空の場合のみエラーを表示
+                        currentGroupID = ""
+                        userName = ""
+                        
+                        let alert = NSAlert()
+                        alert.messageText = "グループ情報の取得に失敗"
+                        alert.informativeText = "グループ情報を取得できませんでした。再度グループに参加してください。"
+                        alert.alertStyle = .warning
+                        alert.addButton(withTitle: "OK")
+                        alert.runModal()
+                    }
+                }
+            }
+            return
+        }
+        
         // 共有ゾーン情報を確認
         let isShared = UserDefaults.standard.string(forKey: "sharedZoneName") != nil
         

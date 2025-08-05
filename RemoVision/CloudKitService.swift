@@ -205,7 +205,7 @@ final class CloudKitService {
             print("❌ Direct fetch failed, trying query...")
             
             // クエリでも試す
-            let predicate = NSPredicate(format: "recordID.recordName == %@", groupID)
+            let predicate = NSPredicate(value: true)
             let query = CKQuery(recordType: RecordType.group, predicate: predicate)
             
             do {
@@ -949,7 +949,6 @@ final class CloudKitService {
                 memberNames.insert(localUserName)
             }
             
-            let sharedDB = CKContainer.default().sharedCloudDatabase
             let sharedZoneName = UserDefaults.standard.string(forKey: "sharedZoneName") ?? ""
             let sharedZoneOwner = UserDefaults.standard.string(forKey: "sharedZoneOwner") ?? ""
             let sharedZoneID = CKRecordZone.ID(zoneName: sharedZoneName, ownerName: sharedZoneOwner)

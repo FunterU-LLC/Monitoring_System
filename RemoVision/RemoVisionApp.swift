@@ -613,34 +613,30 @@ struct RemoVisionApp: App {
             
             // Check Capabilities
             print("\n🔍 === CHECKING CAPABILITIES ===")
-            do {
-                // Check if we can access public database
-                let publicDB = container.publicCloudDatabase
-                print("✅ Public database accessible")
-                
-                // Try to perform a simple count query
-                let countQuery = CKQuery(recordType: "Group", predicate: NSPredicate(value: true))
-                let countOp = CKQueryOperation(query: countQuery)
-                countOp.resultsLimit = 1
-                var quickCheckFound = false
-                
-                countOp.recordMatchedBlock = { _, result in
-                    if case .success = result {
-                        quickCheckFound = true
-                    }
+            // Check if we can access public database
+            let publicDB = container.publicCloudDatabase
+            print("✅ Public database accessible")
+
+            // Try to perform a simple count query
+            let countQuery = CKQuery(recordType: "Group", predicate: NSPredicate(value: true))
+            let countOp = CKQueryOperation(query: countQuery)
+            countOp.resultsLimit = 1
+            var quickCheckFound = false
+
+            countOp.recordMatchedBlock = { _, result in
+                if case .success = result {
+                    quickCheckFound = true
                 }
-                
-                await withCheckedContinuation { continuation in
-                    countOp.queryResultBlock = { _ in
-                        continuation.resume()
-                    }
-                    publicDB.add(countOp)
-                }
-                
-                print("📋 Quick check - found any groups: \(quickCheckFound)")
-            } catch {
-                print("❌ Capability check failed: \(error)")
             }
+
+            await withCheckedContinuation { continuation in
+                countOp.queryResultBlock = { _ in
+                    continuation.resume()
+                }
+                publicDB.add(countOp)
+            }
+
+            print("📋 Quick check - found any groups: \(quickCheckFound)")
             
             // TestFlightかどうかを確認
             let isTestFlight = Bundle.main.appStoreReceiptURL?.lastPathComponent == "sandboxReceipt"
@@ -685,56 +681,57 @@ struct RemoVisionApp: App {
             let testQuery = CKQuery(recordType: "Group", predicate: NSPredicate(value: true))
             print("🔍 Query: All records of type 'Group' in public database")
 
-            do {
-                var foundRecords: [CKRecord] = []
-                
-                let testOperation = CKQueryOperation(query: testQuery)
-                testOperation.resultsLimit = 10  // ここでresultsLimitを設定
-                
-                testOperation.recordMatchedBlock = { _, result in
+            var foundRecords: [CKRecord] = []
+
+            let testOperation = CKQueryOperation(query: testQuery)
+            testOperation.resultsLimit = 10
+
+            testOperation.recordMatchedBlock = { _, result in
+                switch result {
+                case .success(let record):
+                    foundRecords.append(record)
+                    print("📦 Found record: \(record.recordID.recordName)")
+                    print("   - Group Name: \(record["groupName"] ?? "nil")")
+                    print("   - Owner Name: \(record["ownerName"] ?? "nil")")
+                    print("   - Created At: \(record["createdAt"] ?? "nil")")
+                case .failure(let error):
+                    print("⚠️ Record match error: \(error)")
+                }
+            }
+
+            await withCheckedContinuation { continuation in
+                testOperation.queryResultBlock = { result in
                     switch result {
-                    case .success(let record):
-                        foundRecords.append(record)
-                        print("📦 Found record: \(record.recordID.recordName)")
-                        print("   - Group Name: \(record["groupName"] ?? "nil")")
-                        print("   - Owner Name: \(record["ownerName"] ?? "nil")")
-                        print("   - Created At: \(record["createdAt"] ?? "nil")")
+                    case .success:
+                        print("\n📑 === TEST QUERY RESULTS ===")
+                        print("📦 Total Group records found: \(foundRecords.count)")
                     case .failure(let error):
-                        print("⚠️ Record match error: \(error)")
+                        print("\n❌ TEST QUERY FAILED")
+                        print("🚨 Error: \(error)")
+                        if let ckError = error as? CKError {
+                            print("🚨 CKError Code: \(ckError.code.rawValue)")
+                        }
                     }
+                    continuation.resume()
                 }
-                
-                await withCheckedContinuation { continuation in
-                    testOperation.queryResultBlock = { result in
-                        continuation.resume()
-                    }
-                    db.add(testOperation)
-                }
-                
-                print("\n📑 === TEST QUERY RESULTS ===")
-                print("📦 Total Group records found: \(foundRecords.count)")
-                
-                if foundRecords.isEmpty {
-                    print("⚠️ No Group records found in public database")
-                    print("   This could mean:")
-                    print("   1. No groups have been created yet")
-                    print("   2. Different CloudKit environments (dev vs prod)")
-                    print("   3. Sync delay between creation and query")
+                db.add(testOperation)
+            }
+
+            // 結果の処理（do-catchブロックの外で）
+            if foundRecords.isEmpty {
+                print("⚠️ No Group records found in public database")
+                print("   This could mean:")
+                print("   1. No groups have been created yet")
+                print("   2. Different CloudKit environments (dev vs prod)")
+                print("   3. Sync delay between creation and query")
+            } else {
+                print("✅ Found \(foundRecords.count) group(s) in database")
+                print("🔍 Looking for group ID: \(groupID)")
+                let matchingGroup = foundRecords.first { $0.recordID.recordName == groupID }
+                if matchingGroup != nil {
+                    print("✅ Target group EXISTS in database!")
                 } else {
-                    print("✅ Found \(foundRecords.count) group(s) in database")
-                    print("🔍 Looking for group ID: \(groupID)")
-                    let matchingGroup = foundRecords.first { $0.recordID.recordName == groupID }
-                    if let match = matchingGroup {
-                        print("✅ Target group EXISTS in database!")
-                    } else {
-                        print("❌ Target group NOT FOUND among existing groups")
-                    }
-                }
-            } catch {
-                print("\n❌ TEST QUERY FAILED")
-                print("🚨 Error: \(error)")
-                if let ckError = error as? CKError {
-                    print("🚨 CKError Code: \(ckError.code.rawValue)")
+                    print("❌ Target group NOT FOUND among existing groups")
                 }
             }
             
@@ -1047,26 +1044,52 @@ struct RemoVisionApp: App {
         let predicate = NSPredicate(format: "recordID.recordName == %@", groupID)
         let query = CKQuery(recordType: "Group", predicate: predicate)
         
-        do {
-            var foundRecords: [CKRecord] = []
-            let queryOp = CKQueryOperation(query: query)
-            
-            queryOp.recordMatchedBlock = { _, result in
-                if case .success(let record) = result {
-                    foundRecords.append(record)
-                    print("✅ Found via query: \(record.recordID.recordName)")
+        var foundRecords: [CKRecord] = []
+        let queryOp = CKQueryOperation(query: query)
+        
+        queryOp.recordMatchedBlock = { _, result in
+            if case .success(let record) = result {
+                foundRecords.append(record)
+                print("✅ Found via query: \(record.recordID.recordName)")
+            }
+        }
+        
+        await withCheckedContinuation { continuation in
+            queryOp.queryResultBlock = { result in
+                if case .failure(let error) = result {
+                    print("❌ Alternative query failed: \(error)")
+                }
+                continuation.resume()
+            }
+            database.add(queryOp)
+        }
+        
+        if let groupRecord = foundRecords.first {
+            print("✅ Successfully found group via query!")
+            if let groupName = groupRecord["groupName"] as? String,
+               let ownerName = groupRecord["ownerName"] as? String {
+                
+                await MainActor.run {
+                    pendingGroupID = groupID
+                    pendingGroupName = groupName
+                    pendingOwnerName = ownerName
+                    showUserNameSheet = true
                 }
             }
+        } else {
+            print("❌ Query approach also failed to find the group")
             
-            await withCheckedContinuation { continuation in
-                queryOp.queryResultBlock = { _ in
-                    continuation.resume()
-                }
-                database.add(queryOp)
-            }
+            // Try with delay
+            print("\n⏳ === RETRYING WITH DELAY ===")
+            print("Waiting 5 seconds for potential sync...")
+            try? await Task.sleep(nanoseconds: 5_000_000_000) // 5秒待機
             
-            if let groupRecord = foundRecords.first {
-                print("✅ Successfully found group via query!")
+            // Retry the direct fetch
+            do {
+                let groupRecordID = CKRecord.ID(recordName: groupID)
+                let groupRecord = try await database.record(for: groupRecordID)
+                
+                print("✅ Found after delay!")
                 if let groupName = groupRecord["groupName"] as? String,
                    let ownerName = groupRecord["ownerName"] as? String {
                     
@@ -1077,37 +1100,10 @@ struct RemoVisionApp: App {
                         showUserNameSheet = true
                     }
                 }
-            } else {
-                print("❌ Query approach also failed to find the group")
-                
-                // Try with delay
-                print("\n⏳ === RETRYING WITH DELAY ===")
-                print("Waiting 5 seconds for potential sync...")
-                try? await Task.sleep(nanoseconds: 5_000_000_000) // 5秒待機
-                
-                // Retry the direct fetch
-                do {
-                    let groupRecordID = CKRecord.ID(recordName: groupID)
-                    let groupRecord = try await database.record(for: groupRecordID)
-                    
-                    print("✅ Found after delay!")
-                    if let groupName = groupRecord["groupName"] as? String,
-                       let ownerName = groupRecord["ownerName"] as? String {
-                        
-                        await MainActor.run {
-                            pendingGroupID = groupID
-                            pendingGroupName = groupName
-                            pendingOwnerName = ownerName
-                            showUserNameSheet = true
-                        }
-                    }
-                } catch {
-                    print("❌ Still not found after delay")
-                    await showGroupNotFoundError(groupID: groupID)
-                }
+            } catch {
+                print("❌ Still not found after delay")
+                await showGroupNotFoundError(groupID: groupID)
             }
-        } catch {
-            print("❌ Alternative query failed: \(error)")
         }
     }
     
