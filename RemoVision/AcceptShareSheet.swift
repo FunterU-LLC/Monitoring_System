@@ -190,10 +190,12 @@ struct AcceptShareSheet: View {
         isLoadingInfo = true
         errorMessage = nil
         
+        // まずシェアのタイトルから取得
         if let shareTitle = metadata.share[CKShare.SystemFieldKey.title] as? String {
             groupName = shareTitle
         }
         
+        // オーナー名の取得
         if let shareOwnerName = metadata.share["ownerName"] as? String {
             ownerName = shareOwnerName
         } else {
@@ -207,22 +209,18 @@ struct AcceptShareSheet: View {
             }
         }
         
-        Task {
-            do {
-                if let rootRecord = metadata.rootRecord {
-                    if let gName = rootRecord["groupName"] as? String {
-                        await MainActor.run {
-                            groupName = gName
-                        }
-                    }
-                }
+        // rootRecordが既に含まれている場合は、そこから情報を取得
+        if let rootRecord = metadata.rootRecord {
+            if let gName = rootRecord["groupName"] as? String {
+                groupName = gName
             }
-            
-            await MainActor.run {
-                withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
-                    isLoadingInfo = false
-                }
+            if let oName = rootRecord["ownerName"] as? String {
+                ownerName = oName
             }
+        }
+        
+        withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
+            isLoadingInfo = false
         }
     }
     

@@ -149,7 +149,7 @@ final class CloudKitService {
         let share = CKShare(rootRecord: groupRecord)
         share[CKShare.SystemFieldKey.title] = groupName as CKRecordValue
         share["ownerName"] = ownerName as CKRecordValue
-        share.publicPermission = .none
+        share.publicPermission = .readWrite
 
         let op = CKModifyRecordsOperation(
             recordsToSave: [groupRecord, share],

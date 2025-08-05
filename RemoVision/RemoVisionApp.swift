@@ -35,6 +35,7 @@ struct UserNameInputSheet: View {
     @Binding var groupID: String
     @Binding var groupName: String
     var onFinish: () -> Void
+    var onCancel: () -> Void
 
     var body: some View {
         ZStack {
@@ -109,33 +110,6 @@ struct UserNameInputSheet: View {
                     .offset(y: showContent ? 0 : 20)
                 }
                 
-                HStack(spacing: 12) {
-                    Image(systemName: "folder.fill")
-                        .font(.system(size: 16))
-                        .foregroundColor(Color(red: 255/255, green: 204/255, blue: 102/255))
-                    
-                    Text("GroupID: \(groupID)")
-                        .font(.system(size: 12, design: .monospaced))
-                        .foregroundColor(colorScheme == .dark ? .white.opacity(0.7) : .secondary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
-                .background(
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(Color.gray.opacity(colorScheme == .dark ? 0.2 : 0.1))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 8)
-                                .strokeBorder(
-                                    Color(red: 255/255, green: 204/255, blue: 102/255).opacity(0.3),
-                                    lineWidth: 1
-                                )
-                        )
-                )
-                .opacity(showContent ? 1 : 0)
-                .offset(y: showContent ? 0 : 30)
-                
                 VStack(alignment: .leading, spacing: 8) {
                     Label("あなたのユーザーネーム", systemImage: "person.fill")
                         .font(.system(size: 13, weight: .medium))
@@ -201,53 +175,73 @@ struct UserNameInputSheet: View {
                 
                 Spacer()
                 
-                Button {
-                    Task { await registerMember() }
-                } label: {
-                    ZStack {
-                        if isRegistering {
-                            HStack(spacing: 8) {
-                                ProgressView()
-                                    .progressViewStyle(CircularProgressViewStyle())
-                                    .scaleEffect(0.8)
-                                    .colorScheme(.light)
-                                Text("登録中...")
+                HStack(spacing: 16) {
+                    Button {
+                        onCancel()
+                    } label: {
+                        Text("キャンセル")
+                            .font(.system(size: 15, weight: .medium))
+                            .foregroundColor(colorScheme == .dark ? .white.opacity(0.8) : .secondary)
+                            .frame(minWidth: 100)
+                            .padding(.vertical, 12)
+                            .background(
+                                Capsule()
+                                    .fill(Color.gray.opacity(colorScheme == .dark ? 0.2 : 0.1))
+                                    .overlay(
+                                        Capsule()
+                                            .strokeBorder(Color.gray.opacity(colorScheme == .dark ? 0.4 : 0.3), lineWidth: 1)
+                                    )
+                            )
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isRegistering)
+                    
+                    Button {
+                        Task { await registerMember() }
+                    } label: {
+                        ZStack {
+                            if isRegistering {
+                                HStack(spacing: 8) {
+                                    ProgressView()
+                                        .progressViewStyle(CircularProgressViewStyle())
+                                        .scaleEffect(0.8)
+                                        .colorScheme(.light)
+                                    Text("登録中...")
+                                        .font(.system(size: 15, weight: .semibold))
+                                }
+                            } else {
+                                Label("参加する", systemImage: "checkmark.circle.fill")
                                     .font(.system(size: 15, weight: .semibold))
                             }
-                        } else {
-                            Label("参加する", systemImage: "checkmark.circle.fill")
-                                .font(.system(size: 15, weight: .semibold))
                         }
-                    }
-                    .foregroundColor(Color(red: 92/255, green: 64/255, blue: 51/255))
-                    .frame(minWidth: 150)
-                    .padding(.vertical, 12)
-                    .background(
-                        Capsule()
-                            .fill(
-                                LinearGradient(
-                                    colors: inputName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isRegistering ?
-                                        [Color.gray, Color.gray.opacity(0.8)] :
-                                        [Color(red: 255/255, green: 204/255, blue: 102/255),
-                                         Color(red: 255/255, green: 184/255, blue: 77/255)],
-                                    startPoint: .leading,
-                                    endPoint: .trailing
+                        .foregroundColor(Color(red: 92/255, green: 64/255, blue: 51/255))
+                        .frame(minWidth: 150)
+                        .padding(.vertical, 12)
+                        .background(
+                            Capsule()
+                                .fill(
+                                    LinearGradient(
+                                        colors: inputName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isRegistering ?
+                                            [Color.gray, Color.gray.opacity(0.8)] :
+                                            [Color(red: 255/255, green: 204/255, blue: 102/255),
+                                             Color(red: 255/255, green: 184/255, blue: 77/255)],
+                                        startPoint: .leading,
+                                        endPoint: .trailing
+                                    )
                                 )
-                            )
-                            .shadow(
-                                color: inputName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isRegistering ?
-                                    Color.clear :
-                                    Color(red: 255/255, green: 204/255, blue: 102/255).opacity(0.3),
-                                radius: 10,
-                                x: 0,
-                                y: 5
-                            )
-                    )
+                                .shadow(
+                                    color: inputName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isRegistering ?
+                                        Color.clear :
+                                        Color(red: 255/255, green: 204/255, blue: 102/255).opacity(0.3),
+                                    radius: 10,
+                                    x: 0,
+                                    y: 5
+                                )
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(inputName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isRegistering)
                 }
-                .buttonStyle(.plain)
-                .disabled(inputName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isRegistering)
-                .opacity(showContent ? 1 : 0)
-                .offset(y: showContent ? 0 : 40)
             }
             .padding(32)
             .frame(width: 450)
@@ -352,6 +346,7 @@ struct RemoVisionApp: App {
     @State private var pendingGroupID: String = ""
     @State private var pendingGroupName: String = ""
     @State private var pendingOwnerName: String = ""
+    @State private var showJoinConfirmationAgain = false
     @State private var permissionCoordinator = PermissionCoordinator()
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @State private var deepLink = DeepLinkManager.shared
@@ -386,6 +381,16 @@ struct RemoVisionApp: App {
                 if let url {
                     handleIncomingURL(url)
                     deepLink.pendingURL = nil
+                }
+            }
+            .onChange(of: showJoinConfirmationAgain) { _, shouldShow in
+                if shouldShow && !pendingGroupID.isEmpty {
+                    showJoinConfirmationAgain = false
+                    showJoinConfirmation(
+                        groupName: pendingGroupName,
+                        ownerName: pendingOwnerName,
+                        recordID: pendingGroupID
+                    )
                 }
             }
             .task {
@@ -442,6 +447,9 @@ struct RemoVisionApp: App {
                     pendingGroupName = ""
                     pendingOwnerName = ""
                     showUserNameSheet = false
+                } onCancel: {
+                    showUserNameSheet = false
+                    showJoinConfirmationAgain = true
                 }
             }
             .task {
@@ -534,6 +542,21 @@ struct RemoVisionApp: App {
     
     @MainActor
     private func updateGroupInfoFromShare(metadata: CKShare.Metadata) async {
+        // まず、metadataに含まれているrootRecordを確認
+        if let rootRecord = metadata.rootRecord {
+            // metadataに既にレコード情報が含まれている場合
+            if let groupName = rootRecord["groupName"] as? String,
+               let ownerName = rootRecord["ownerName"] as? String {
+                
+                pendingGroupID = rootRecord.recordID.recordName
+                pendingGroupName = groupName
+                pendingOwnerName = ownerName
+                showUserNameSheet = true
+                return
+            }
+        }
+        
+        // metadataにレコード情報が含まれていない場合、少し待機してから取得を試みる
         do {
             guard let rootRecordID = metadata.hierarchicalRootRecordID else {
                 let alert = NSAlert()
@@ -545,8 +568,14 @@ struct RemoVisionApp: App {
                 return
             }
             
-            let db = CKContainer.default().privateCloudDatabase
-            let groupRecord = try await db.record(for: rootRecordID)
+            // 共有の受け入れ処理が完了するまで少し待機
+            try await Task.sleep(nanoseconds: 1_000_000_000) // 1秒待機
+            
+            // 共有データベースから取得
+            let sharedDB = CKContainer.default().sharedCloudDatabase
+            
+            // Zone IDを指定せずに取得を試みる（共有レコードは元のZone IDを保持）
+            let groupRecord = try await sharedDB.record(for: rootRecordID)
             
             if let groupName = groupRecord["groupName"] as? String,
                let ownerName = groupRecord["ownerName"] as? String {
@@ -555,14 +584,27 @@ struct RemoVisionApp: App {
                 pendingGroupName = groupName
                 pendingOwnerName = ownerName
                 showUserNameSheet = true
+            } else {
+                throw NSError(domain: "GroupInfo", code: -1,
+                             userInfo: [NSLocalizedDescriptionKey: "グループ情報が不完全です"])
             }
         } catch {
-            let alert = NSAlert()
-            alert.messageText = "エラー"
-            alert.informativeText = "グループ情報を取得できませんでした。"
-            alert.alertStyle = .warning
-            alert.addButton(withTitle: "OK")
-            alert.runModal()
+            // エラーが発生した場合、シェアの情報から取得を試みる
+            if let shareTitle = metadata.share[CKShare.SystemFieldKey.title] as? String,
+               let shareOwnerName = metadata.share["ownerName"] as? String {
+                
+                pendingGroupID = metadata.hierarchicalRootRecordID?.recordName ?? ""
+                pendingGroupName = shareTitle
+                pendingOwnerName = shareOwnerName
+                showUserNameSheet = true
+            } else {
+                let alert = NSAlert()
+                alert.messageText = "エラー"
+                alert.informativeText = "グループ情報を取得できませんでした。\nもう一度お試しください。"
+                alert.alertStyle = .warning
+                alert.addButton(withTitle: "OK")
+                alert.runModal()
+            }
         }
     }
 

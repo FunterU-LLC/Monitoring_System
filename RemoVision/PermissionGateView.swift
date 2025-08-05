@@ -29,6 +29,8 @@ struct PermissionGateView: View {
             .frame(minWidth: 650, minHeight: 600)
             .padding(40)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.clear)
         .onAppear {
             withAnimation(.spring(response: 0.8, dampingFraction: 0.7).delay(0.2)) {
                 showPermissions = true
@@ -39,8 +41,6 @@ struct PermissionGateView: View {
             perm.recheckAll()
             updateCurrentStep()
         }
-        .frame(minWidth: 800, minHeight: 600)
-        .padding(40)
     }
     
     private var headerSection: some View {
