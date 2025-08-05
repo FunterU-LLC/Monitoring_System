@@ -274,7 +274,24 @@ struct UserNameInputSheet: View {
         await MainActor.run {
             isRegistering = true
             errorMessage = nil
+            
+            // ここで currentGroupID を設定（重要！）
+            UserDefaults.standard.set(groupID, forKey: "currentGroupID")
+            UserDefaults.standard.synchronize()
         }
+        
+        print("\n🚀 === Register Member Debug ===")
+        print("📝 Attempting to register:")
+        print("  groupID: \(groupID)")
+        print("  userName: \(trimmedName)")
+        print("  groupName: \(groupName)")
+        
+        // 現在の状態を確認
+        await CloudKitService.shared.debugShareAndZoneInfo()
+        
+        // 共有の受け入れが完了するまで待機
+        print("⏳ Waiting for share acceptance to complete...")
+        try? await Task.sleep(nanoseconds: 3_000_000_000) // 3秒待機
         
         do {
             _ = try await CloudKitService.shared.createOrUpdateMember(
@@ -288,9 +305,14 @@ struct UserNameInputSheet: View {
                 onFinish()
             }
         } catch {
+            print("❌ Registration failed: \(error)")
             await MainActor.run {
                 errorMessage = "メンバー登録に失敗しました: \(error.localizedDescription)"
                 isRegistering = false
+                
+                // エラー時は currentGroupID をクリア
+                UserDefaults.standard.removeObject(forKey: "currentGroupID")
+                UserDefaults.standard.synchronize()
             }
         }
     }
@@ -542,22 +564,57 @@ struct RemoVisionApp: App {
     
     @MainActor
     private func updateGroupInfoFromShare(metadata: CKShare.Metadata) async {
-        // まず、metadataに含まれているrootRecordを確認
-        if let rootRecord = metadata.rootRecord {
-            // metadataに既にレコード情報が含まれている場合
-            if let groupName = rootRecord["groupName"] as? String,
-               let ownerName = rootRecord["ownerName"] as? String {
+        do {
+            // 共有ゾーンIDを保存（メンバーとして参加していることを示す）
+            let shareZoneID = metadata.share.recordID.zoneID
+            UserDefaults.standard.set(shareZoneID.zoneName, forKey: "sharedZoneName")
+            UserDefaults.standard.set(shareZoneID.ownerName, forKey: "sharedZoneOwner")
+            UserDefaults.standard.synchronize()
+            
+            // 共有データベースから情報を取得
+            let sharedDB = CKContainer.default().sharedCloudDatabase
+            
+            // メタデータから直接情報を取得（可能な場合）
+            if let shareTitle = metadata.share[CKShare.SystemFieldKey.title] as? String,
+               let shareOwnerName = metadata.share["ownerName"] as? String {
                 
-                pendingGroupID = rootRecord.recordID.recordName
-                pendingGroupName = groupName
-                pendingOwnerName = ownerName
+                pendingGroupID = shareZoneID.zoneName // ゾーン名をグループIDとして使用
+                pendingGroupName = shareTitle
+                pendingOwnerName = shareOwnerName
+                
+                // グループ情報を保存（共有データベースからの取得が失敗した場合のフォールバック）
+                GroupInfoStore.shared.groupInfo = GroupInfo(
+                    groupName: pendingGroupName,
+                    ownerName: pendingOwnerName,
+                    recordID: pendingGroupID
+                )
+                
                 showUserNameSheet = true
                 return
             }
-        }
-        
-        // metadataにレコード情報が含まれていない場合、少し待機してから取得を試みる
-        do {
+            
+            // フォールバック: rootRecordから情報を取得
+            if let rootRecord = metadata.rootRecord {
+                if let groupName = rootRecord["groupName"] as? String,
+                   let ownerName = rootRecord["ownerName"] as? String {
+                    
+                    pendingGroupID = rootRecord.recordID.recordName
+                    pendingGroupName = groupName
+                    pendingOwnerName = ownerName
+                    
+                    // グループ情報を保存（共有データベースからの取得が失敗した場合のフォールバック）
+                    GroupInfoStore.shared.groupInfo = GroupInfo(
+                        groupName: pendingGroupName,
+                        ownerName: pendingOwnerName,
+                        recordID: pendingGroupID
+                    )
+                    
+                    showUserNameSheet = true
+                    return
+                }
+            }
+            
+            // それでも取得できない場合は、レコードIDから取得を試みる
             guard let rootRecordID = metadata.hierarchicalRootRecordID else {
                 let alert = NSAlert()
                 alert.messageText = "エラー"
@@ -572,17 +629,22 @@ struct RemoVisionApp: App {
             try await Task.sleep(nanoseconds: 1_000_000_000) // 1秒待機
             
             // 共有データベースから取得
-            let sharedDB = CKContainer.default().sharedCloudDatabase
-            
-            // Zone IDを指定せずに取得を試みる（共有レコードは元のZone IDを保持）
             let groupRecord = try await sharedDB.record(for: rootRecordID)
             
             if let groupName = groupRecord["groupName"] as? String,
                let ownerName = groupRecord["ownerName"] as? String {
                 
-                pendingGroupID = rootRecordID.recordName
+                pendingGroupID = shareZoneID.zoneName // ゾーン名をグループIDとして使用
                 pendingGroupName = groupName
                 pendingOwnerName = ownerName
+                
+                // グループ情報を保存（共有データベースからの取得が失敗した場合のフォールバック）
+                GroupInfoStore.shared.groupInfo = GroupInfo(
+                    groupName: pendingGroupName,
+                    ownerName: pendingOwnerName,
+                    recordID: pendingGroupID
+                )
+                
                 showUserNameSheet = true
             } else {
                 throw NSError(domain: "GroupInfo", code: -1,
@@ -590,23 +652,35 @@ struct RemoVisionApp: App {
             }
         } catch {
             // エラーが発生した場合、シェアの情報から取得を試みる
-            if let shareTitle = metadata.share[CKShare.SystemFieldKey.title] as? String,
-               let shareOwnerName = metadata.share["ownerName"] as? String {
+            if let shareTitle = metadata.share[CKShare.SystemFieldKey.title] as? String {
+                let shareOwnerName = metadata.share["ownerName"] as? String ??
+                                    metadata.ownerIdentity.nameComponents?.formatted() ??
+                                    "不明"
                 
-                pendingGroupID = metadata.hierarchicalRootRecordID?.recordName ?? ""
+                let shareZoneID = metadata.share.recordID.zoneID
+                pendingGroupID = shareZoneID.zoneName
                 pendingGroupName = shareTitle
                 pendingOwnerName = shareOwnerName
+                
+                // グループ情報を保存（共有データベースからの取得が失敗した場合のフォールバック）
+                GroupInfoStore.shared.groupInfo = GroupInfo(
+                    groupName: pendingGroupName,
+                    ownerName: pendingOwnerName,
+                    recordID: pendingGroupID
+                )
+                
                 showUserNameSheet = true
             } else {
                 let alert = NSAlert()
                 alert.messageText = "エラー"
-                alert.informativeText = "グループ情報を取得できませんでした。\nもう一度お試しください。"
+                alert.informativeText = "グループ情報を取得できませんでした。\n詳細: \(error.localizedDescription)"
                 alert.alertStyle = .warning
                 alert.addButton(withTitle: "OK")
                 alert.runModal()
             }
         }
     }
+    
 
     private func fetchGroupRecordDirectly(recordID: String) {
         

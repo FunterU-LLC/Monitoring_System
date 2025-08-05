@@ -349,34 +349,91 @@ struct ContentView: View {
     }
     
     private func fetchGroupInfoFromCloudKit(groupID: String) async {
-        let zoneID = CloudKitService.workZoneID
-        let groupRecordID = CKRecord.ID(recordName: groupID, zoneID: zoneID)
-        let db = CKContainer.default().privateCloudDatabase
+        // 共有ゾーン情報を確認
+        let isShared = UserDefaults.standard.string(forKey: "sharedZoneName") != nil
         
-        do {
-            let record = try await db.record(for: groupRecordID)
+        if isShared {
+            // 共有データベースの場合
+            let sharedDB = CKContainer.default().sharedCloudDatabase
+            let sharedZoneName = UserDefaults.standard.string(forKey: "sharedZoneName") ?? ""
+            let sharedZoneOwner = UserDefaults.standard.string(forKey: "sharedZoneOwner") ?? ""
+            let sharedZoneID = CKRecordZone.ID(zoneName: sharedZoneName, ownerName: sharedZoneOwner)
+            let groupRecordID = CKRecord.ID(recordName: groupID, zoneID: sharedZoneID)
             
-            let groupName = record["groupName"] as? String ?? "Unknown Group"
-            let ownerName = record["ownerName"] as? String ?? "Unknown Owner"
-            
-            await MainActor.run {
-                GroupInfoStore.shared.groupInfo = GroupInfo(
-                    groupName: groupName,
-                    ownerName: ownerName,
-                    recordID: groupID
-                )
-            }
-        } catch {
-            await MainActor.run {
-                currentGroupID = ""
-                userName = ""
+            do {
+                let record = try await sharedDB.record(for: groupRecordID)
                 
-                let alert = NSAlert()
-                alert.messageText = "グループ情報の取得に失敗"
-                alert.informativeText = "グループ情報を取得できませんでした。再度グループに参加してください。"
-                alert.alertStyle = .warning
-                alert.addButton(withTitle: "OK")
-                alert.runModal()
+                let groupName = record["groupName"] as? String ?? "Unknown Group"
+                let ownerName = record["ownerName"] as? String ?? "Unknown Owner"
+                
+                await MainActor.run {
+                    GroupInfoStore.shared.groupInfo = GroupInfo(
+                        groupName: groupName,
+                        ownerName: ownerName,
+                        recordID: groupID
+                    )
+                }
+            } catch {
+                print("❌ Failed to fetch group info from shared database: \(error)")
+                
+                // エラーの場合、共有情報から推測して設定
+                if !sharedZoneName.isEmpty {
+                    await MainActor.run {
+                        // グループ名は不明だが、少なくともグループには参加している
+                        GroupInfoStore.shared.groupInfo = GroupInfo(
+                            groupName: "共有グループ",
+                            ownerName: "Unknown Owner",
+                            recordID: groupID
+                        )
+                        
+                        // エラーアラートは表示しない（既に参加済みなので）
+                    }
+                } else {
+                    // 本当にグループ情報が取得できない場合のみリセット
+                    await MainActor.run {
+                        currentGroupID = ""
+                        userName = ""
+                        
+                        let alert = NSAlert()
+                        alert.messageText = "グループ情報の取得に失敗"
+                        alert.informativeText = "グループ情報を取得できませんでした。再度グループに参加してください。"
+                        alert.alertStyle = .warning
+                        alert.addButton(withTitle: "OK")
+                        alert.runModal()
+                    }
+                }
+            }
+        } else {
+            // プライベートデータベースの場合（オーナー）
+            let zoneID = CloudKitService.workZoneID
+            let groupRecordID = CKRecord.ID(recordName: groupID, zoneID: zoneID)
+            let db = CKContainer.default().privateCloudDatabase
+            
+            do {
+                let record = try await db.record(for: groupRecordID)
+                
+                let groupName = record["groupName"] as? String ?? "Unknown Group"
+                let ownerName = record["ownerName"] as? String ?? "Unknown Owner"
+                
+                await MainActor.run {
+                    GroupInfoStore.shared.groupInfo = GroupInfo(
+                        groupName: groupName,
+                        ownerName: ownerName,
+                        recordID: groupID
+                    )
+                }
+            } catch {
+                await MainActor.run {
+                    currentGroupID = ""
+                    userName = ""
+                    
+                    let alert = NSAlert()
+                    alert.messageText = "グループ情報の取得に失敗"
+                    alert.informativeText = "グループ情報を取得できませんでした。再度グループに参加してください。"
+                    alert.alertStyle = .warning
+                    alert.addButton(withTitle: "OK")
+                    alert.runModal()
+                }
             }
         }
     }
@@ -804,6 +861,9 @@ struct GroupDetailPanel: View {
                                 currentGroupID = ""
                                 storedUserName = ""
                                 
+                                // 共有ゾーン情報もクリア
+                                UserDefaults.standard.removeObject(forKey: "sharedZoneName")
+                                UserDefaults.standard.removeObject(forKey: "sharedZoneOwner")
                                 UserDefaults.standard.removeObject(forKey: "currentGroupID")
                                 UserDefaults.standard.removeObject(forKey: "userName")
                                 UserDefaults.standard.synchronize()

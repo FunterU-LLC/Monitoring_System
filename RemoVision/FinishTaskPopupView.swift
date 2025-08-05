@@ -356,16 +356,23 @@ struct FinishTaskPopupView: View {
     
     private func uploadToCloudKit(sessionRecord: SessionRecordModel) async {
         guard !currentGroupID.isEmpty && !userName.isEmpty else {
+            print("❌ Upload skipped: groupID or userName is empty")
             return
         }
         
         do {
+            print("📤 Uploading session for user: \(userName) in group: \(currentGroupID)")
+            print("📊 Task count: \(sessionRecord.taskSummaries?.count ?? 0)")
+            
             try await CloudKitService.shared.uploadSession(
                 groupID: currentGroupID,
                 userName: userName,
                 sessionRecord: sessionRecord
             )
+            
+            print("✅ Upload successful!")
         } catch {
+            print("❌ Upload failed: \(error)")
             await MainActor.run {
                 let alert = NSAlert()
                 alert.messageText = "アップロードエラー"

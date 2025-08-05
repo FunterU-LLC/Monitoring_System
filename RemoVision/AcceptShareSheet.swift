@@ -230,11 +230,28 @@ struct AcceptShareSheet: View {
         
         Task {
             do {
+                print("\n🎯 === Join Group Debug ===")
+                print("📍 Metadata share zone: \(metadata.share.recordID.zoneID)")
+                print("📍 Root record ID: \(metadata.hierarchicalRootRecordID?.recordName ?? "nil")")
+                
+                // 共有を受け入れる前の状態を確認
+                await CloudKitService.shared.debugShareAndZoneInfo()
+                
                 try await CloudKitService.shared.acceptShare(from: metadata)
+                
+                print("✅ Share accepted successfully")
+                
+                // 共有を受け入れた後の状態を確認
+                await CloudKitService.shared.debugShareAndZoneInfo()
+                
                 await MainActor.run {
                     onFinish(true)
                 }
             } catch let error as CKError {
+                print("❌ CKError: \(error)")
+                print("  Error code: \(error.code)")
+                print("  Error description: \(error.localizedDescription)")
+                
                 await MainActor.run {
                     withAnimation(.spring(response: 0.5)) {
                         isJoining = false

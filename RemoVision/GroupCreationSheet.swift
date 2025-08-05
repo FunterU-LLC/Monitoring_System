@@ -283,6 +283,10 @@ struct GroupCreationSheet: View {
             presentShareSheet(url: result.url)
 
             DispatchQueue.main.async {
+                // オーナーの場合、共有ゾーン情報をクリア（自分のプライベートゾーンを使用）
+                UserDefaults.standard.removeObject(forKey: "sharedZoneName")
+                UserDefaults.standard.removeObject(forKey: "sharedZoneOwner")
+                
                 GroupInfoStore.shared.groupInfo = GroupInfo(
                     groupName: groupName,
                     ownerName: ownerName,

@@ -31,6 +31,42 @@ final class CloudKitService {
         networkMonitor.cancel()
     }
     
+    private var isUsingSharedZone: Bool {
+        // currentGroupIDまたは共有ゾーン情報があればtrue
+        let hasGroupID = !(UserDefaults.standard.string(forKey: "currentGroupID") ?? "").isEmpty
+        let hasSharedZone = UserDefaults.standard.string(forKey: "sharedZoneName") != nil
+        return hasGroupID || hasSharedZone
+    }
+
+    private var currentZoneID: CKRecordZone.ID {
+        // 共有ゾーン情報が保存されている場合（メンバー）
+        if let zoneName = UserDefaults.standard.string(forKey: "sharedZoneName"),
+           let ownerName = UserDefaults.standard.string(forKey: "sharedZoneOwner") {
+            // 共有ゾーンのオーナー名をそのまま使用
+            return CKRecordZone.ID(zoneName: zoneName, ownerName: ownerName)
+        }
+        
+        // グループIDがある場合（オーナー）
+        if let groupID = UserDefaults.standard.string(forKey: "currentGroupID"), !groupID.isEmpty {
+            return CKRecordZone.ID(zoneName: groupID, ownerName: CKCurrentUserDefaultName)
+        }
+        
+        // フォールバック
+        return Self.workZoneID
+    }
+
+    private var currentDatabase: CKDatabase {
+        // 共有ゾーンの情報があるかチェック（メンバーの場合）
+        if UserDefaults.standard.string(forKey: "sharedZoneName") != nil ||
+           UserDefaults.standard.string(forKey: "sharedZoneOwner") != nil {
+            // メンバーとして参加している場合は sharedCloudDatabase を使用
+            return CKContainer.default().sharedCloudDatabase
+        } else {
+            // オーナーの場合は privateCloudDatabase を使用
+            return CKContainer.default().privateCloudDatabase
+        }
+    }
+    
     private func setupNetworkMonitoring() {
         networkMonitor.pathUpdateHandler = { [weak self] path in
             Task { @MainActor in
@@ -87,6 +123,11 @@ final class CloudKitService {
     }
 
     private func ensureZone() async throws {
+        // 共有ゾーンを使用している場合は、ゾーンの作成をスキップ
+        if isUsingSharedZone {
+            return
+        }
+        
         let db = CKContainer.default().privateCloudDatabase
 
         do {
@@ -134,45 +175,87 @@ final class CloudKitService {
         static let taskUsageSummary = "TaskUsageSummary"
         static let appUsage = "AppUsage"
     }
+    
+    // CloudKitServiceクラス内に追加
+    func debugPrintCurrentEnvironment() {
+        print("=== CloudKit Environment Debug ===")
+        print("Is Using Shared Zone: \(isUsingSharedZone)")
+        print("Current Zone ID: \(currentZoneID)")
+        print("Current Database: \(currentDatabase == CKContainer.default().sharedCloudDatabase ? "Shared" : "Private")")
+        
+        if let zoneName = UserDefaults.standard.string(forKey: "sharedZoneName"),
+           let ownerName = UserDefaults.standard.string(forKey: "sharedZoneOwner") {
+            print("Shared Zone: \(zoneName) owned by \(ownerName)")
+        }
+        print("================================")
+    }
 
     func createGroup(ownerName: String,
                      groupName: String) async throws -> (url: URL, groupID: String) {
-
-        try await ensureZone()
-        let zoneID = Self.workZoneID
-
-        let recordID = CKRecord.ID(recordName: UUID().uuidString, zoneID: zoneID)
-        let groupRecord = CKRecord(recordType: "Group", recordID: recordID)
+        
+        // グループID（ゾーン名）を生成
+        let groupID = UUID().uuidString
+        let groupZoneID = CKRecordZone.ID(zoneName: groupID, ownerName: CKCurrentUserDefaultName)
+        
+        // 新しいゾーンを作成
+        let groupZone = CKRecordZone(zoneID: groupZoneID)
+        
+        let db = CKContainer.default().privateCloudDatabase
+        
+        // ゾーンを作成
+        try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, Error>) in
+            let zoneOp = CKModifyRecordZonesOperation(recordZonesToSave: [groupZone], recordZoneIDsToDelete: nil)
+            zoneOp.modifyRecordZonesResultBlock = { result in
+                switch result {
+                case .success:
+                    cont.resume(returning: ())
+                case .failure(let error):
+                    cont.resume(throwing: error)
+                }
+            }
+            db.add(zoneOp)
+        }
+        
+        // グループレコードの作成
+        let groupRecordID = CKRecord.ID(recordName: groupID, zoneID: groupZoneID)
+        let groupRecord = CKRecord(recordType: "Group", recordID: groupRecordID)
         groupRecord["groupName"] = groupName as CKRecordValue
         groupRecord["ownerName"] = ownerName as CKRecordValue
-
+        
+        // グループレコードベースのシェアを作成
         let share = CKShare(rootRecord: groupRecord)
         share[CKShare.SystemFieldKey.title] = groupName as CKRecordValue
         share["ownerName"] = ownerName as CKRecordValue
         share.publicPermission = .readWrite
-
+        
+        // オーナー自身のメンバーレコードを作成
+        let ownerMemberID = CKRecord.ID(recordName: UUID().uuidString, zoneID: groupZoneID)
+        let ownerMemberRecord = CKRecord(recordType: "Member", recordID: ownerMemberID)
+        ownerMemberRecord["userName"] = ownerName as CKRecordValue
+        ownerMemberRecord["groupRef"] = CKRecord.Reference(recordID: groupRecordID, action: .deleteSelf) as CKRecordValue
+        
+        // すべてを保存
         let op = CKModifyRecordsOperation(
-            recordsToSave: [groupRecord, share],
+            recordsToSave: [groupRecord, share, ownerMemberRecord],
             recordIDsToDelete: nil)
         op.savePolicy = .ifServerRecordUnchanged
-        op.isAtomic   = true
-
+        op.isAtomic = true
+        
         return try await withCheckedThrowingContinuation { cont in
             op.modifyRecordsResultBlock = { result in
                 switch result {
                 case .success:
                     if let shareURL = share.url {
-                        cont.resume(returning: (shareURL, groupRecord.recordID.recordName))
+                        cont.resume(returning: (shareURL, groupID))
                     } else {
-                        let fallbackURL = URL(string: "monitoringsystem://share/\(groupRecord.recordID.recordName)")!
-                        cont.resume(returning: (fallbackURL, groupRecord.recordID.recordName))
+                        let fallbackURL = URL(string: "monitoringsystem://share/\(groupID)")!
+                        cont.resume(returning: (fallbackURL, groupID))
                     }
-
                 case .failure(let error):
                     cont.resume(throwing: error)
                 }
             }
-            CKContainer.default().privateCloudDatabase.add(op)
+            db.add(op)
         }
     }
     
@@ -204,17 +287,23 @@ final class CloudKitService {
             CKContainer.default().add(operation)
         }
     }
-
-    func uploadSession(groupID: String, userName: String, sessionRecord: SessionRecordModel) async throws {
+    
+    func getSharedZoneID(from metadata: CKShare.Metadata) async throws -> CKRecordZone.ID? {
+        // メタデータから共有ゾーンIDを取得
+        // metadata.shareは非オプショナルなので直接アクセス
+        let share = metadata.share
         
-        let portableSession = convertToPortableSession(sessionRecord)
-        
-        if isOnline {
-            try await uploadSessionDirectly(groupID: groupID, userName: userName, session: portableSession)
-        } else {
-            saveToTemporaryStorage(groupID: groupID, userName: userName, session: portableSession)
-        }
+        // シェアがゾーンレベルの共有かどうかを確認
+        // ゾーンレベルの共有の場合、recordIDのzoneIDを返す
+        return share.recordID.zoneID
     }
+
+    // 共有ゾーンでの操作用のデータベースを取得
+    func getDatabaseForSharedZone() -> CKDatabase {
+        // 共有されたデータは sharedCloudDatabase でアクセス
+        return CKContainer.default().sharedCloudDatabase
+    }
+
     
     private func convertToPortableSession(_ session: SessionRecordModel) -> PortableSessionRecord {
         let taskSummaries = session.taskSummaries ?? []
@@ -244,15 +333,40 @@ final class CloudKitService {
         )
     }
 
+    func uploadSession(groupID: String, userName: String, sessionRecord: SessionRecordModel) async throws {
+        let portableSession = convertToPortableSession(sessionRecord)
+        
+        // 共有データベースを使用している場合（メンバー）
+        if currentDatabase == CKContainer.default().sharedCloudDatabase {
+            print("📌 Member trying to upload - saving to temporary storage")
+            // メンバーの場合は常に一時ストレージに保存
+            saveToTemporaryStorage(groupID: groupID, userName: userName, session: portableSession)
+            
+            // TODO: 将来的にはここでオーナーに通知を送る仕組みを実装
+            print("ℹ️ Data saved locally. Owner needs to implement data collection mechanism.")
+            return
+        }
+        
+        // オーナーの場合は通常通りアップロード
+        if isOnline {
+            try await uploadSessionDirectly(groupID: groupID, userName: userName, session: portableSession)
+        } else {
+            saveToTemporaryStorage(groupID: groupID, userName: userName, session: portableSession)
+        }
+    }
+
     private func uploadSessionDirectly(groupID: String, userName: String, session: PortableSessionRecord) async throws {
+        // 現在のゾーンIDとデータベースを使用
+        let zoneID = currentZoneID
+        let db = currentDatabase
         
         let memberID = try await createOrUpdateMember(groupID: groupID, userName: userName)
-        let memberRecordID = CKRecord.ID(recordName: memberID, zoneID: Self.workZoneID)
+        let memberRecordID = CKRecord.ID(recordName: memberID, zoneID: zoneID)
         let memberRef = CKRecord.Reference(recordID: memberRecordID, action: .deleteSelf)
         
         var recordsToSave: [CKRecord] = []
         
-        let sessionRecordID = CKRecord.ID(recordName: UUID().uuidString, zoneID: Self.workZoneID)
+        let sessionRecordID = CKRecord.ID(recordName: UUID().uuidString, zoneID: zoneID)
         let sessionRecord = CKRecord(recordType: RecordType.sessionRecord, recordID: sessionRecordID)
         sessionRecord["memberRef"] = memberRef as CKRecordValue
         sessionRecord["endTime"] = session.endTime as CKRecordValue
@@ -262,7 +376,7 @@ final class CloudKitService {
         let sessionRef = CKRecord.Reference(recordID: sessionRecordID, action: .deleteSelf)
         
         for task in session.taskSummaries {
-            let taskRecordID = CKRecord.ID(recordName: UUID().uuidString, zoneID: Self.workZoneID)
+            let taskRecordID = CKRecord.ID(recordName: UUID().uuidString, zoneID: zoneID)
             let taskRecord = CKRecord(recordType: RecordType.taskUsageSummary, recordID: taskRecordID)
             taskRecord["sessionRef"] = sessionRef as CKRecordValue
             taskRecord["reminderId"] = task.reminderId as CKRecordValue
@@ -282,7 +396,7 @@ final class CloudKitService {
             let taskRef = CKRecord.Reference(recordID: taskRecordID, action: .deleteSelf)
             
             for app in task.appBreakdown {
-                let appRecordID = CKRecord.ID(recordName: UUID().uuidString, zoneID: Self.workZoneID)
+                let appRecordID = CKRecord.ID(recordName: UUID().uuidString, zoneID: zoneID)
                 let appRecord = CKRecord(recordType: RecordType.appUsage, recordID: appRecordID)
                 appRecord["taskRef"] = taskRef as CKRecordValue
                 appRecord["name"] = app.name as CKRecordValue
@@ -291,7 +405,8 @@ final class CloudKitService {
             }
         }
         
-        try await uploadRecordsInBatches(recordsToSave)
+        // 修正: uploadRecordsInBatchesにデータベースを渡す
+        try await uploadRecordsInBatches(recordsToSave, to: db)
     }
 
     private func saveToTemporaryStorage(groupID: String, userName: String, session: PortableSessionRecord) {
@@ -375,70 +490,150 @@ final class CloudKitService {
         savePendingUploads()
     }
     
+    
+    func debugShareAndZoneInfo() async {
+        print("\n🔍 === Share and Zone Debug Info ===")
+        print("📦 isUsingSharedZone: \(isUsingSharedZone)")
+        print("🏷️ currentZoneID: \(currentZoneID)")
+        print("💾 currentDatabase: \(currentDatabase == CKContainer.default().sharedCloudDatabase ? "Shared" : "Private")")
+        
+        // UserDefaultsの内容を確認
+        print("\n📋 UserDefaults:")
+        print("  currentGroupID: \(UserDefaults.standard.string(forKey: "currentGroupID") ?? "nil")")
+        print("  sharedZoneName: \(UserDefaults.standard.string(forKey: "sharedZoneName") ?? "nil")")
+        print("  sharedZoneOwner: \(UserDefaults.standard.string(forKey: "sharedZoneOwner") ?? "nil")")
+        
+        // 利用可能なゾーンを確認
+        print("\n🗂️ Available Zones:")
+        
+        // Privateデータベースのゾーン
+        let privateDB = CKContainer.default().privateCloudDatabase
+        do {
+            let privateZones = try await privateDB.allRecordZones()
+            print("  Private zones: \(privateZones.map { $0.zoneID })")
+        } catch {
+            print("  ❌ Failed to fetch private zones: \(error)")
+        }
+        
+        // Sharedデータベースのゾーン
+        let sharedDB = CKContainer.default().sharedCloudDatabase
+        do {
+            let sharedZones = try await sharedDB.allRecordZones()
+            print("  Shared zones: \(sharedZones.map { $0.zoneID })")
+        } catch {
+            print("  ❌ Failed to fetch shared zones: \(error)")
+        }
+        
+        print("===================================\n")
+    }
+    
+    // メンバーとして参加している場合は、自分の情報をローカルに保存するだけ
+    func registerAsLocalMember(groupID: String, userName: String) async throws -> String {
+        print("📝 Registering as local member only (shared database limitation)")
+        
+        // ローカルに保存（UserDefaultsまたは別の方法で）
+        UserDefaults.standard.set(userName, forKey: "localMemberName")
+        UserDefaults.standard.set(groupID, forKey: "localGroupID")
+        UserDefaults.standard.synchronize()
+        
+        // 仮のメンバーIDを返す
+        let localMemberID = "LOCAL_\(UUID().uuidString)"
+        return localMemberID
+    }
+
     func createOrUpdateMember(groupID: String, userName: String) async throws -> String {
-        try await ensureZone()
+        // デバッグ情報を出力
+        await debugShareAndZoneInfo()
         
-        let groupRecordID = CKRecord.ID(recordName: groupID, zoneID: Self.workZoneID)
-        let groupRef = CKRecord.Reference(recordID: groupRecordID, action: .deleteSelf)
+        print("🔧 createOrUpdateMember called:")
+        print("  groupID: \(groupID)")
+        print("  userName: \(userName)")
         
+        let db = currentDatabase
+        
+        // 共有データベースを使用している場合（メンバーとして参加）
+        if db == CKContainer.default().sharedCloudDatabase {
+            print("📌 Shared database detected - using local registration only")
+            return try await registerAsLocalMember(groupID: groupID, userName: userName)
+        }
+        
+        // プライベートデータベースの場合（オーナー）
+        if !isUsingSharedZone {
+            try await ensureZone()
+        }
+        
+        let zoneID = currentZoneID
+        
+        // 既存のメンバーをチェック
         if let existingMemberID = try await findMember(groupID: groupID, userName: userName) {
+            print("✅ Existing member found: \(existingMemberID)")
             return existingMemberID
         }
         
-        let memberRecordID = CKRecord.ID(recordName: UUID().uuidString, zoneID: Self.workZoneID)
+        // 新しいメンバーレコードを作成
+        let memberRecordID = CKRecord.ID(recordName: UUID().uuidString, zoneID: zoneID)
         let memberRecord = CKRecord(recordType: RecordType.member, recordID: memberRecordID)
         memberRecord["userName"] = userName as CKRecordValue
+        
+        let groupRecordID = CKRecord.ID(recordName: groupID, zoneID: zoneID)
+        let groupRef = CKRecord.Reference(recordID: groupRecordID, action: .deleteSelf)
         memberRecord["groupRef"] = groupRef as CKRecordValue
         
-        let db = CKContainer.default().privateCloudDatabase
-        
-        return try await withCheckedThrowingContinuation { continuation in
-            db.save(memberRecord) { record, error in
-                if let error = error {
-                    continuation.resume(throwing: error)
-                } else if let record = record {
-                    continuation.resume(returning: record.recordID.recordName)
-                } else {
-                    continuation.resume(throwing: CKServiceError.recordNotFound)
-                }
-            }
+        // レコードを保存
+        do {
+            let savedRecord = try await db.save(memberRecord)
+            print("✅ Member created successfully with ID: \(savedRecord.recordID.recordName)")
+            return savedRecord.recordID.recordName
+        } catch {
+            print("❌ Member creation failed: \(error)")
+            throw error
         }
     }
     
     private func findMember(groupID: String, userName: String) async throws -> String? {
-        let groupRecordID = CKRecord.ID(recordName: groupID, zoneID: Self.workZoneID)
-        let groupRef = CKRecord.Reference(recordID: groupRecordID, action: .deleteSelf)
+        let db = currentDatabase
         
-        let predicate = NSPredicate(format: "groupRef == %@ AND userName == %@", groupRef, userName)
+        // 共有データベースの場合、クエリ条件を調整
+        let predicate: NSPredicate
+        if db == CKContainer.default().sharedCloudDatabase {
+            // 共有データベースではuserNameのみで検索し、結果をフィルタリング
+            predicate = NSPredicate(format: "userName == %@", userName)
+        } else {
+            // プライベートデータベースでは従来通り
+            let zoneID = currentZoneID
+            let groupRecordID = CKRecord.ID(recordName: groupID, zoneID: zoneID)
+            let groupRef = CKRecord.Reference(recordID: groupRecordID, action: .deleteSelf)
+            predicate = NSPredicate(format: "groupRef == %@ AND userName == %@", groupRef, userName)
+        }
+        
         let query = CKQuery(recordType: RecordType.member, predicate: predicate)
         
-        let db = CKContainer.default().privateCloudDatabase
+        // performQueryを使用
+        let records = try await performQuery(query, in: db)
         
-        return try await withCheckedThrowingContinuation { continuation in
-            db.fetch(withQuery: query, inZoneWith: Self.workZoneID, desiredKeys: nil, resultsLimit: 1000) { result in
-                switch result {
-                case .success(let (matchResults, _)):
-                    let records = matchResults.compactMap { (recordID, recordResult) in
-                        if case .success(let record) = recordResult {
-                            return record
-                        }
-                        return nil
-                    }
-                    if let first = records.first {
-                        continuation.resume(returning: first.recordID.recordName)
-                    } else {
-                        continuation.resume(returning: nil)
-                    }
-                case .failure(let error):
-                    continuation.resume(throwing: error)
-                }
+        // 共有データベースの場合、取得したレコードから正しいゾーンのものをフィルタリング
+        if db == CKContainer.default().sharedCloudDatabase {
+            let targetZoneID = currentZoneID
+            let filteredRecords = records.filter { record in
+                return record.recordID.zoneID == targetZoneID
+            }
+            
+            print("   Filtered \(filteredRecords.count) records for zone: \(targetZoneID)")
+            
+            if let first = filteredRecords.first {
+                return first.recordID.recordName
+            }
+        } else {
+            if let first = records.first {
+                return first.recordID.recordName
             }
         }
+        
+        return nil
     }
     
-    private func uploadRecordsInBatches(_ records: [CKRecord]) async throws {
+    private func uploadRecordsInBatches(_ records: [CKRecord], to database: CKDatabase) async throws {
         let batchSize = 400
-        let db = CKContainer.default().privateCloudDatabase
         
         for chunk in records.chunked(into: batchSize) {
             let operation = CKModifyRecordsOperation(recordsToSave: chunk, recordIDsToDelete: nil)
@@ -455,33 +650,74 @@ final class CloudKitService {
                     }
                 }
                 
-                db.add(operation)
+                database.add(operation) // 指定されたデータベースを使用
             }
         }
     }
 
     func fetchGroupMembers(groupID: String) async throws -> [String] {
-        
         guard !groupID.isEmpty else {
             return []
         }
         
-        try await ensureZone()
-        
         var memberNames: Set<String> = []
         
-        let groupRecordID = CKRecord.ID(recordName: groupID, zoneID: Self.workZoneID)
-        let db = CKContainer.default().privateCloudDatabase
+        // 共有データベースの場合
+        if currentDatabase == CKContainer.default().sharedCloudDatabase {
+            print("📌 Fetching members from shared database")
+            
+            // 自分のローカル名を追加
+            if let localUserName = UserDefaults.standard.string(forKey: "userName") {
+                memberNames.insert(localUserName)
+            }
+            
+            // 共有されているグループレコードからオーナー名を取得
+            let zoneID = currentZoneID
+            let groupRecordID = CKRecord.ID(recordName: groupID, zoneID: zoneID)
+            
+            do {
+                let groupRecord = try await currentDatabase.record(for: groupRecordID)
+                if let ownerName = groupRecord["ownerName"] as? String {
+                    memberNames.insert(ownerName)
+                }
+            } catch {
+                print("⚠️ Could not fetch group record from shared database: \(error)")
+                
+                // フォールバック：GroupInfoStoreから情報を取得
+                if let groupInfo = GroupInfoStore.shared.groupInfo,
+                   groupInfo.recordID == groupID {
+                    memberNames.insert(groupInfo.ownerName)
+                }
+            }
+            
+            // 他のメンバーは共有データベースからは取得できない
+            print("ℹ️ Note: Full member list is only available to the owner")
+            
+            return Array(memberNames).sorted()
+        }
+        
+        // プライベートデータベースの場合（オーナー）
+        if !isUsingSharedZone {
+            try await ensureZone()
+        }
+        
+        let db = currentDatabase
+        let zoneID = currentZoneID
+        
+        // グループレコードを取得してオーナー名を追加
+        let groupRecordID = CKRecord.ID(recordName: groupID, zoneID: zoneID)
         
         do {
             let groupRecord = try await db.record(for: groupRecordID)
             if let ownerName = groupRecord["ownerName"] as? String {
                 memberNames.insert(ownerName)
             }
+        } catch {
+            // グループレコードが見つからない場合は続行
         }
         
+        // メンバーレコードを取得
         let groupRef = CKRecord.Reference(recordID: groupRecordID, action: .deleteSelf)
-        
         let memberPredicate = NSPredicate(format: "groupRef == %@", groupRef)
         let memberQuery = CKQuery(recordType: RecordType.member, predicate: memberPredicate)
         memberQuery.sortDescriptors = [NSSortDescriptor(key: "userName", ascending: true)]
@@ -498,113 +734,66 @@ final class CloudKitService {
     }
     
     func fetchUserSummaries(groupID: String, userName: String, forDays days: Int) async throws -> ([TaskUsageSummary], Int) {
+        print("📊 Fetching summaries for user: \(userName) in group: \(groupID)")
+        print("   Current Zone: \(currentZoneID)")
+        print("   Database: \(currentDatabase == CKContainer.default().privateCloudDatabase ? "Private" : "Shared")")
         
         guard !groupID.isEmpty && !userName.isEmpty else {
+            print("❌ Empty groupID or userName")
             return ([], 0)
+        }
+        
+        // 共有データベースの場合、データは読み取れない
+        if currentDatabase == CKContainer.default().sharedCloudDatabase {
+            print("ℹ️ Shared database - no data available for members")
+            // キャッシュからのみデータを取得
+            let cache = CloudKitCacheStore.shared
+            let cachedSummaries = await cache.loadCachedSummaries(groupID: groupID, userName: userName, forDays: days)
+            let completedCount = cachedSummaries.filter { $0.isCompleted }.count
+            return (cachedSummaries, completedCount)
         }
         
         try await ensureZone()
         
         let cache = CloudKitCacheStore.shared
-        let tokenKey = "\(groupID)_\(userName)"
-        let previousToken = cache.loadToken(for: tokenKey)
         
         let cachedSummaries = await cache.loadCachedSummaries(groupID: groupID, userName: userName, forDays: days)
         
+        // 使用するデータベースとゾーンIDを決定
+        let db = currentDatabase
+        let zoneID = currentZoneID
+        
+        // メンバーIDを取得
         guard let memberID = try await findMember(groupID: groupID, userName: userName) else {
             return (cachedSummaries, cachedSummaries.filter { $0.isCompleted }.count)
         }
         
-        let memberRecordID = CKRecord.ID(recordName: memberID, zoneID: Self.workZoneID)
+        let memberRecordID = CKRecord.ID(recordName: memberID, zoneID: zoneID)
         let memberRef = CKRecord.Reference(recordID: memberRecordID, action: .deleteSelf)
         
         let calendar = Calendar.current
         let startOfToday = calendar.startOfDay(for: Date())
         let fromDate = calendar.date(byAdding: .day, value: -(days - 1), to: startOfToday)!
         
-        let db = CKContainer.default().privateCloudDatabase
+        // セッションレコードを取得
+        let sessionPredicate = NSPredicate(format: "memberRef == %@ AND endTime >= %@", memberRef, fromDate as NSDate)
+        let sessionQuery = CKQuery(recordType: RecordType.sessionRecord, predicate: sessionPredicate)
+        sessionQuery.sortDescriptors = [NSSortDescriptor(key: "endTime", ascending: false)]
         
-        let options = CKFetchRecordZoneChangesOperation.ZoneConfiguration()
-        options.previousServerChangeToken = previousToken
+        let sessionRecords = try await performQuery(sessionQuery, in: db)
         
-        let operation = CKFetchRecordZoneChangesOperation(recordZoneIDs: [Self.workZoneID], configurationsByRecordZoneID: [Self.workZoneID: options])
+        var allSummaries: [TaskUsageSummary] = []
         
-        var changedRecords: [CKRecord] = []
-        var newToken: CKServerChangeToken?
-        
-        operation.recordWasChangedBlock = { recordID, result in
-            switch result {
-            case .success(let record):
-                changedRecords.append(record)
-            case .failure:
-                break
-            }
-        }
-        
-        operation.recordZoneFetchResultBlock = { zoneID, result in
-            switch result {
-            case .success(let (token, _, _)):
-                newToken = token
-            case .failure:
-                break
-            }
-        }
-        
-        operation.fetchRecordZoneChangesResultBlock = { result in
-            switch result {
-            case .success:
-                break
-            case .failure(let error):
-                if let ckError = error as? CKError, ckError.code == .changeTokenExpired {
-                    newToken = nil
-                }
-            }
-        }
-        
-        operation.qualityOfService = .userInitiated
-        db.add(operation)
-        
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            operation.fetchRecordZoneChangesResultBlock = { result in
-                switch result {
-                case .success:
-                    continuation.resume()
-                case .failure(let error):
-                    if let ckError = error as? CKError, ckError.code == .changeTokenExpired {
-                        continuation.resume()
-                    } else {
-                        continuation.resume(throwing: error)
-                    }
-                }
-            }
-        }
-        
-        if let token = newToken {
-            cache.saveToken(token, for: tokenKey)
-        } else if previousToken != nil {
-            await cache.clearCache(for: groupID, userName: userName)
-            return try await fetchUserSummariesFullSync(groupID: groupID, userName: userName, forDays: days)
-        }
-        
-        let relevantSessionRecords = changedRecords.filter { record in
-            record.recordType == RecordType.sessionRecord &&
-            record["memberRef"] as? CKRecord.Reference == memberRef &&
-            (record["endTime"] as? Date ?? Date.distantPast) >= fromDate
-        }
-        
-        var newSummaries: [TaskUsageSummary] = []
-        
-        for sessionRecord in relevantSessionRecords {
+        for sessionRecord in sessionRecords {
             let sessionRef = CKRecord.Reference(recordID: sessionRecord.recordID, action: .deleteSelf)
-            let taskSummaries = try await fetchTaskSummariesForManagement(sessionRef: sessionRef)
-            newSummaries.append(contentsOf: taskSummaries)
+            let taskSummaries = try await fetchTaskSummariesForManagement(sessionRef: sessionRef, in: db)
+            allSummaries.append(contentsOf: taskSummaries)
             
             let sessionEndTime = sessionRecord["endTime"] as? Date ?? Date()
             await cache.saveTaskSummaries(taskSummaries, groupID: groupID, userName: userName, sessionEndTime: sessionEndTime)
         }
         
-        let allSummaries = cachedSummaries + newSummaries
-        
+        // データをマージして返す
         var merged: [String: TaskUsageSummary] = [:]
         
         for task in allSummaries {
@@ -643,7 +832,10 @@ final class CloudKitService {
             return ([], 0)
         }
         
-        let memberRecordID = CKRecord.ID(recordName: memberID, zoneID: Self.workZoneID)
+        let db = currentDatabase
+        let zoneID = currentZoneID
+        
+        let memberRecordID = CKRecord.ID(recordName: memberID, zoneID: zoneID)
         let memberRef = CKRecord.Reference(recordID: memberRecordID, action: .deleteSelf)
         
         let calendar = Calendar.current
@@ -654,7 +846,6 @@ final class CloudKitService {
         let sessionQuery = CKQuery(recordType: RecordType.sessionRecord, predicate: sessionPredicate)
         sessionQuery.sortDescriptors = [NSSortDescriptor(key: "endTime", ascending: false)]
         
-        let db = CKContainer.default().privateCloudDatabase
         let sessionRecords = try await performQuery(sessionQuery, in: db)
         
         var allSummaries: [TaskUsageSummary] = []
@@ -662,7 +853,7 @@ final class CloudKitService {
         
         for sessionRecord in sessionRecords {
             let sessionRef = CKRecord.Reference(recordID: sessionRecord.recordID, action: .deleteSelf)
-            let taskSummaries = try await fetchTaskSummariesForManagement(sessionRef: sessionRef)
+            let taskSummaries = try await fetchTaskSummariesForManagement(sessionRef: sessionRef, in: db)  // dbパラメータを追加
             allSummaries.append(contentsOf: taskSummaries)
             
             let sessionEndTime = sessionRecord["endTime"] as? Date ?? Date()
@@ -702,12 +893,11 @@ final class CloudKitService {
         return (sortedTasks, mergedCompletedCount)
     }
     
-    private func fetchTaskSummariesForManagement(sessionRef: CKRecord.Reference) async throws -> [TaskUsageSummary] {
+    private func fetchTaskSummariesForManagement(sessionRef: CKRecord.Reference, in database: CKDatabase) async throws -> [TaskUsageSummary] {
         let taskPredicate = NSPredicate(format: "sessionRef == %@", sessionRef)
         let taskQuery = CKQuery(recordType: RecordType.taskUsageSummary, predicate: taskPredicate)
         
-        let db = CKContainer.default().privateCloudDatabase
-        let taskRecords = try await performQuery(taskQuery, in: db)
+        let taskRecords = try await performQuery(taskQuery, in: database)
         
         var tasks: [TaskUsageSummary] = []
         
@@ -722,7 +912,7 @@ final class CloudKitService {
             let parentTaskName = taskRecord["parentTaskName"] as? String
             
             let taskRef = CKRecord.Reference(recordID: taskRecord.recordID, action: .deleteSelf)
-            let appUsages = try await fetchAppUsagesForManagement(taskRef: taskRef)
+            let appUsages = try await fetchAppUsagesForManagement(taskRef: taskRef, in: database)
             
             let task = TaskUsageSummary(
                 reminderId: reminderId,
@@ -740,13 +930,12 @@ final class CloudKitService {
         
         return tasks
     }
-    
-    private func fetchAppUsagesForManagement(taskRef: CKRecord.Reference) async throws -> [AppUsage] {
+
+    private func fetchAppUsagesForManagement(taskRef: CKRecord.Reference, in database: CKDatabase) async throws -> [AppUsage] {
         let appPredicate = NSPredicate(format: "taskRef == %@", taskRef)
         let appQuery = CKQuery(recordType: RecordType.appUsage, predicate: appPredicate)
         
-        let db = CKContainer.default().privateCloudDatabase
-        let appRecords = try await performQuery(appQuery, in: db)
+        let appRecords = try await performQuery(appQuery, in: database)
         
         var apps: [AppUsage] = []
         
@@ -884,19 +1073,65 @@ final class CloudKitService {
     }
     
     private func performQuery(_ query: CKQuery, in database: CKDatabase) async throws -> [CKRecord] {
-        return try await withCheckedThrowingContinuation { continuation in
-            database.fetch(withQuery: query, inZoneWith: Self.workZoneID, desiredKeys: nil, resultsLimit: 1000) { result in
-                switch result {
-                case .success(let (matchResults, _)):
-                    let records = matchResults.compactMap { (recordID, recordResult) in
-                        if case .success(let record) = recordResult {
-                            return record
-                        }
-                        return nil
+        print("🔍 Performing query")
+        print("   Record type: \(query.recordType)")
+        print("   Database: \(database == CKContainer.default().sharedCloudDatabase ? "Shared" : "Private")")
+        
+        // 共有データベースの場合
+        if database == CKContainer.default().sharedCloudDatabase {
+            // CKQueryOperationを使用してゾーンIDなしでクエリを実行
+            var allRecords: [CKRecord] = []
+            
+            return try await withCheckedThrowingContinuation { continuation in
+                let operation = CKQueryOperation(query: query)
+                operation.resultsLimit = 1000
+                
+                // レコードを受信したときの処理
+                operation.recordMatchedBlock = { _, result in
+                    switch result {
+                    case .success(let record):
+                        allRecords.append(record)
+                    case .failure(let error):
+                        print("   Error fetching record: \(error)")
                     }
-                    continuation.resume(returning: records)
-                case .failure(let error):
-                    continuation.resume(throwing: error)
+                }
+                
+                // クエリ完了時の処理
+                operation.queryResultBlock = { result in
+                    switch result {
+                    case .success:
+                        print("   Found \(allRecords.count) records in shared database")
+                        continuation.resume(returning: allRecords)
+                    case .failure(let error):
+                        print("   Query failed: \(error)")
+                        continuation.resume(throwing: error)
+                    }
+                }
+                
+                // 共有データベースで実行
+                database.add(operation)
+            }
+        } else {
+            // プライベートデータベースの場合は従来通りゾーンIDを指定
+            let zoneID = currentZoneID
+            print("   Using zone: \(zoneID)")
+            
+            return try await withCheckedThrowingContinuation { continuation in
+                database.fetch(withQuery: query, inZoneWith: zoneID, desiredKeys: nil, resultsLimit: 1000) { result in
+                    switch result {
+                    case .success(let (matchResults, _)):
+                        let records = matchResults.compactMap { (recordID, recordResult) in
+                            if case .success(let record) = recordResult {
+                                return record
+                            }
+                            return nil
+                        }
+                        print("   Found \(records.count) records")
+                        continuation.resume(returning: records)
+                    case .failure(let error):
+                        print("   Query failed: \(error)")
+                        continuation.resume(throwing: error)
+                    }
                 }
             }
         }
@@ -919,10 +1154,9 @@ final class CloudKitService {
         }
     }
         
-    private func deleteRecordsInBatches(_ recordIDs: [CKRecord.ID]) async throws {
+    private func deleteRecordsInBatches(_ recordIDs: [CKRecord.ID], from database: CKDatabase) async throws {
         let batchSize = 400
-        let db = CKContainer.default().privateCloudDatabase
-            
+        
         for chunk in recordIDs.chunked(into: batchSize) {
             let operation = CKModifyRecordsOperation(recordsToSave: nil, recordIDsToDelete: chunk)
             operation.isAtomic = false
@@ -936,55 +1170,12 @@ final class CloudKitService {
                         continuation.resume(throwing: error)
                     }
                 }
-                db.add(operation)
+                database.add(operation)  // 指定されたデータベースを使用
             }
         }
     }
         
-    func deleteUserData(groupID: String, userName: String) async throws {
-            
-        guard let memberID = try await findMember(groupID: groupID, userName: userName) else {
-            return
-        }
-            
-        let memberRecordID = CKRecord.ID(recordName: memberID, zoneID: Self.workZoneID)
-        let memberRef = CKRecord.Reference(recordID: memberRecordID, action: .deleteSelf)
-            
-        let sessionQuery = CKQuery(recordType: RecordType.sessionRecord,
-                                    predicate: NSPredicate(format: "memberRef == %@", memberRef))
-        let db = CKContainer.default().privateCloudDatabase
-        let sessions = try await performQuery(sessionQuery, in: db)
-            
-        var recordsToDelete: [CKRecord.ID] = []
-            
-        for session in sessions {
-            let sessionRef = CKRecord.Reference(recordID: session.recordID, action: .deleteSelf)
-                
-            let taskQuery = CKQuery(recordType: RecordType.taskUsageSummary,
-                                    predicate: NSPredicate(format: "sessionRef == %@", sessionRef))
-            let tasks = try await performQuery(taskQuery, in: db)
-                
-            for task in tasks {
-                let taskRef = CKRecord.Reference(recordID: task.recordID, action: .deleteSelf)
-                    
-                let appQuery = CKQuery(recordType: RecordType.appUsage,
-                                        predicate: NSPredicate(format: "taskRef == %@", taskRef))
-                let apps = try await performQuery(appQuery, in: db)
-            
-                recordsToDelete.append(contentsOf: apps.map { $0.recordID })
-                
-                recordsToDelete.append(task.recordID)
-            }
-            recordsToDelete.append(session.recordID)
-        }
-            
-        recordsToDelete.append(memberRecordID)
-            
-        if !recordsToDelete.isEmpty {
-            try await deleteRecordsInBatches(recordsToDelete)
-        } else {
-        }
-    }
+    
     
     func deleteMyDataFromCloudKit(groupID: String, userName: String) async throws {
         guard !groupID.isEmpty && !userName.isEmpty else {
@@ -994,6 +1185,50 @@ final class CloudKitService {
         try await deleteUserData(groupID: groupID, userName: userName)
     }
 
+    func deleteUserData(groupID: String, userName: String) async throws {
+        guard let memberID = try await findMember(groupID: groupID, userName: userName) else {
+            return
+        }
+        
+        let db = currentDatabase  // 現在のデータベースを使用
+        let zoneID = currentZoneID
+        
+        let memberRecordID = CKRecord.ID(recordName: memberID, zoneID: zoneID)
+        let memberRef = CKRecord.Reference(recordID: memberRecordID, action: .deleteSelf)
+        
+        let sessionQuery = CKQuery(recordType: RecordType.sessionRecord,
+                                    predicate: NSPredicate(format: "memberRef == %@", memberRef))
+        let sessions = try await performQuery(sessionQuery, in: db)
+        
+        var recordsToDelete: [CKRecord.ID] = []
+        
+        for session in sessions {
+            let sessionRef = CKRecord.Reference(recordID: session.recordID, action: .deleteSelf)
+            
+            let taskQuery = CKQuery(recordType: RecordType.taskUsageSummary,
+                                    predicate: NSPredicate(format: "sessionRef == %@", sessionRef))
+            let tasks = try await performQuery(taskQuery, in: db)
+            
+            for task in tasks {
+                let taskRef = CKRecord.Reference(recordID: task.recordID, action: .deleteSelf)
+                
+                let appQuery = CKQuery(recordType: RecordType.appUsage,
+                                        predicate: NSPredicate(format: "taskRef == %@", taskRef))
+                let apps = try await performQuery(appQuery, in: db)
+            
+                recordsToDelete.append(contentsOf: apps.map { $0.recordID })
+                recordsToDelete.append(task.recordID)
+            }
+            recordsToDelete.append(session.recordID)
+        }
+        
+        recordsToDelete.append(memberRecordID)
+        
+        if !recordsToDelete.isEmpty {
+            try await deleteRecordsInBatches(recordsToDelete, from: db)  // データベースを渡す
+        }
+    }
+
     func deleteGroupIfOwner(groupID: String, ownerName: String, currentUserName: String) async throws -> Bool {
         guard ownerName == currentUserName else {
             return false
@@ -1001,10 +1236,11 @@ final class CloudKitService {
         
         try await ensureZone()
         
-        let groupRecordID = CKRecord.ID(recordName: groupID, zoneID: Self.workZoneID)
-        let groupRef = CKRecord.Reference(recordID: groupRecordID, action: .deleteSelf)
+        let db = currentDatabase  // 現在のデータベースを使用
+        let zoneID = currentZoneID
         
-        let db = CKContainer.default().privateCloudDatabase
+        let groupRecordID = CKRecord.ID(recordName: groupID, zoneID: zoneID)
+        let groupRef = CKRecord.Reference(recordID: groupRecordID, action: .deleteSelf)
         
         let memberQuery = CKQuery(recordType: RecordType.member, predicate: NSPredicate(format: "groupRef == %@", groupRef))
         let members = try await performQuery(memberQuery, in: db)
@@ -1049,7 +1285,7 @@ final class CloudKitService {
         allRecordsToDelete.append(groupRecordID)
         
         if !allRecordsToDelete.isEmpty {
-            try await deleteRecordsInBatches(allRecordsToDelete)
+            try await deleteRecordsInBatches(allRecordsToDelete, from: db)  // データベースを渡す
         }
         
         return true
@@ -1076,72 +1312,69 @@ final class CloudKitService {
     }
         
     func updateTaskCompletion(groupID: String, taskReminderId: String, isCompleted: Bool) async throws {
-            
         guard !groupID.isEmpty && !taskReminderId.isEmpty else {
             throw CKServiceError.invalidZone
         }
-            
+        
         try await ensureZone()
-            
+        
         let predicate = NSPredicate(format: "reminderId == %@", taskReminderId)
         let query = CKQuery(recordType: RecordType.taskUsageSummary, predicate: predicate)
-            
-        let db = CKContainer.default().privateCloudDatabase
+        
+        let db = currentDatabase  // 現在のデータベースを使用
         let records = try await performQuery(query, in: db)
-            
+        
         guard !records.isEmpty else {
             return
         }
-            
+        
         var recordsToUpdate: [CKRecord] = []
         var sessionRecordsToUpdate: Set<CKRecord.ID> = []
-            
+        
         for record in records {
             record["isCompleted"] = isCompleted as CKRecordValue
             recordsToUpdate.append(record)
-                
+            
             if let sessionRef = record["sessionRef"] as? CKRecord.Reference {
                 sessionRecordsToUpdate.insert(sessionRef.recordID)
             }
         }
-            
+        
         for sessionID in sessionRecordsToUpdate {
             if let sessionRecord = try? await db.record(for: sessionID) {
                 let sessionRef = CKRecord.Reference(recordID: sessionID, action: .deleteSelf)
                 let taskPredicate = NSPredicate(format: "sessionRef == %@", sessionRef)
                 let taskQuery = CKQuery(recordType: RecordType.taskUsageSummary, predicate: taskPredicate)
                 let tasks = try await performQuery(taskQuery, in: db)
-                    
+                
                 let completedCount = tasks.filter { ($0["isCompleted"] as? Bool) ?? false }.count
                 sessionRecord["completedCount"] = completedCount as CKRecordValue
                 recordsToUpdate.append(sessionRecord)
             }
         }
-            
+        
         if !recordsToUpdate.isEmpty {
-            try await uploadRecordsInBatches(recordsToUpdate)
-        } else {
+            try await uploadRecordsInBatches(recordsToUpdate, to: db)  // データベースを渡す
         }
     }
         
     func updateTaskName(groupID: String, taskReminderId: String, newName: String) async throws {
-        
         guard !groupID.isEmpty && !taskReminderId.isEmpty && !newName.isEmpty else {
             throw CKServiceError.invalidZone
         }
-            
+        
         try await ensureZone()
         
         let predicate = NSPredicate(format: "reminderId == %@", taskReminderId)
         let query = CKQuery(recordType: RecordType.taskUsageSummary, predicate: predicate)
         
-        let db = CKContainer.default().privateCloudDatabase
+        let db = currentDatabase  // 現在のデータベースを使用
         let records = try await performQuery(query, in: db)
         
         guard !records.isEmpty else {
             return
         }
-            
+        
         var recordsToUpdate: [CKRecord] = []
         for record in records {
             record["taskName"] = newName as CKRecordValue
@@ -1149,13 +1382,11 @@ final class CloudKitService {
         }
         
         if !recordsToUpdate.isEmpty {
-            try await uploadRecordsInBatches(recordsToUpdate)
-        } else {
+            try await uploadRecordsInBatches(recordsToUpdate, to: db)  // データベースを渡す
         }
     }
         
     func deleteTask(groupID: String, taskReminderId: String) async throws {
-        
         guard !groupID.isEmpty && !taskReminderId.isEmpty else {
             throw CKServiceError.invalidZone
         }
@@ -1165,14 +1396,13 @@ final class CloudKitService {
         let predicate = NSPredicate(format: "reminderId == %@", taskReminderId)
         let query = CKQuery(recordType: RecordType.taskUsageSummary, predicate: predicate)
         
-        let db = CKContainer.default().privateCloudDatabase
+        let db = currentDatabase  // 現在のデータベースを使用
         let records = try await performQuery(query, in: db)
         
         let recordIDs = records.map { $0.recordID }
         
         if !recordIDs.isEmpty {
-            try await deleteRecordsInBatches(recordIDs)
-        } else {
+            try await deleteRecordsInBatches(recordIDs, from: db)  // データベースを渡す
         }
     }
 }
@@ -1184,3 +1414,25 @@ extension Array {
         }
     }
 }
+
+// MARK: - Future Implementation Ideas for Member Data Upload
+
+/*
+ 共有データベースの制限により、メンバーが直接データをアップロードできない問題の解決案：
+ 
+ 1. プッシュ通知を使ったデータ収集
+    - メンバーがデータを生成したら、オーナーにプッシュ通知を送信
+    - オーナーのアプリがバックグラウンドで起動し、メンバーのデータを収集
+ 
+ 2. 一時的な公開レコードの使用
+    - パブリックデータベースに一時的にデータを保存
+    - オーナーが定期的にチェックして自分のプライベートデータベースに移動
+ 
+ 3. CloudKit以外の中間サービスの使用
+    - Firebase等の別サービスを中継点として使用
+    - メンバーがデータをアップロード後、オーナーが取得
+ 
+ 4. 定期的なデータ同期機能
+    - オーナーが定期的にメンバーのローカルデータを要求
+    - メンバーが承認したらデータを送信
+*/

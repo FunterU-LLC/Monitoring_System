@@ -652,13 +652,24 @@ private extension ManagementView {
             await MainActor.run {
                 withAnimation(.spring(response: 0.3)) {
                     groupMembers = members
-                    if groupMembers.contains(userName) {
+                    
+                    // メンバーが一人だけ、または空の場合の処理
+                    if members.isEmpty {
+                        // 自分自身を追加
+                        groupMembers = [userName]
+                        selectedUser = userName
+                    } else if members.count == 1 && !members.contains(userName) {
+                        // 他のメンバーが一人だけの場合、自分も追加
+                        groupMembers.append(userName)
+                        selectedUser = userName
+                    } else if groupMembers.contains(userName) {
                         selectedUser = userName
                     } else if let firstMember = groupMembers.first {
                         selectedUser = firstMember
                     } else {
                         selectedUser = ""
                     }
+                    
                     isLoadingMembers = false
                 }
                 isUpdatingCloudKit = false
@@ -666,12 +677,23 @@ private extension ManagementView {
         } catch {
             await MainActor.run {
                 withAnimation(.spring(response: 0.3)) {
+                    // エラーの場合も最低限自分は表示
                     groupMembers = [userName]
                     selectedUser = userName
                     isLoadingMembers = false
                 }
                 isUpdatingCloudKit = false
             }
+        }
+        
+        Task { @MainActor in
+            CloudKitService.shared.debugPrintCurrentEnvironment()
+            print("=== Group Members Debug ===")
+            print("Current Group ID: \(currentGroupID)")
+            print("Current User Name: \(userName)")
+            print("Found Members: \(groupMembers)")
+            print("Selected User: \(selectedUser)")
+            print("========================")
         }
     }
 }
