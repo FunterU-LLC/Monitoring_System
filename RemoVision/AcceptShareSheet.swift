@@ -1,3 +1,6 @@
+// Note: このファイルはパブリックデータベースモードでは使用されません。
+// 互換性のために残していますが、usePublicDatabase = true の場合は呼び出されません。
+
 import SwiftUI
 import CloudKit
 

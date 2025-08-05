@@ -5,6 +5,8 @@ import CloudKit
 import Observation
 
 
+private let usePublicDatabase = true
+
 extension CKShare.Metadata: @retroactive Identifiable {
     public var id: CKRecord.ID { share.recordID }
 }
@@ -513,9 +515,29 @@ struct RemoVisionApp: App {
     }
     
     private func handleIncomingURL(_ url: URL) {
+        // CloudKitの共有URLは使用しない
+        if usePublicDatabase && url.absoluteString.contains("icloud.com") {
+            let alert = NSAlert()
+            alert.messageText = "共有方法が変更されました"
+            alert.informativeText = "このアプリはCloudKitの共有機能を使用していません。グループIDを直接共有してください。"
+            alert.alertStyle = .informational
+            alert.addButton(withTitle: "OK")
+            alert.runModal()
+            return
+        }
+        
+        // パブリックデータベースモード用のURL処理
+        if url.scheme == "monitoringsystem" && url.host == "join" {
+            let groupID = url.lastPathComponent
+            if !groupID.isEmpty {
+                handleGroupJoin(groupID: groupID)
+            }
+            return
+        }
+        
         if url.absoluteString.contains("icloud.com") &&
-           (url.absoluteString.contains("/share/") || url.absoluteString.contains("ckshare")) {
-
+            (url.absoluteString.contains("/share/") || url.absoluteString.contains("ckshare")) {
+            
             Task {
                 await SessionDataStore.shared.wipeAllPersistentData()
                 CloudKitService.shared.clearTemporaryStorage()
@@ -559,6 +581,168 @@ struct RemoVisionApp: App {
                 fetchGroupRecordDirectly(recordID: recordID)
             }
             return
+        }
+    }
+    
+    private func handleGroupJoin(groupID: String) {
+        print("🔵 Attempting to join group with ID: \(groupID)")
+        
+        Task {
+            let container = CKContainer.default()
+            print("📱 Container ID: \(container.containerIdentifier ?? "unknown")")
+            
+            // CloudKit環境を確認
+            #if DEBUG
+            print("🏗️ Build Configuration: DEBUG")
+            #else
+            print("🏗️ Build Configuration: RELEASE")
+            #endif
+            
+            // TestFlightかどうかを確認
+            let isTestFlight = Bundle.main.appStoreReceiptURL?.lastPathComponent == "sandboxReceipt"
+            print("📱 Is TestFlight: \(isTestFlight)")
+            
+            // アカウント状態確認
+            do {
+                let status = try await container.accountStatus()
+                print("🔐 Account Status: \(status.rawValue)")
+                switch status {
+                case .available:
+                    print("   ✅ iCloud account available")
+                case .noAccount:
+                    print("   ❌ No iCloud account")
+                case .restricted:
+                    print("   ⚠️ iCloud restricted")
+                case .couldNotDetermine:
+                    print("   ⚠️ Could not determine status")
+                case .temporarilyUnavailable:
+                    print("   ⚠️ Temporarily unavailable")
+                @unknown default:
+                    print("   ❓ Unknown status")
+                }
+                
+                // ユーザー情報を取得
+                let userID = try await container.userRecordID()
+                print("👤 User Record ID: \(userID.recordName)")
+            } catch {
+                print("❌ Account check failed: \(error)")
+            }
+            
+            // テスト: 全Groupレコードを取得
+            print("🧪 Testing CloudKit access...")
+            let db = CKContainer.default().publicCloudDatabase
+
+            let testQuery = CKQuery(recordType: "Group", predicate: NSPredicate(value: true))
+
+            do {
+                var foundRecords: [CKRecord] = []
+                
+                let testOperation = CKQueryOperation(query: testQuery)
+                testOperation.resultsLimit = 10  // ここでresultsLimitを設定
+                
+                testOperation.recordMatchedBlock = { _, result in
+                    if case .success(let record) = result {
+                        foundRecords.append(record)
+                        print("   Found record: \(record.recordID.recordName)")
+                    }
+                }
+                
+                await withCheckedContinuation { continuation in
+                    testOperation.queryResultBlock = { result in
+                        continuation.resume()
+                    }
+                    db.add(testOperation)
+                }
+                
+                print("🧪 Total Group records found: \(foundRecords.count)")
+                
+                if foundRecords.isEmpty {
+                    print("⚠️ No Group records found in public database")
+                    print("   This suggests different environments or sync issues")
+                }
+            } catch {
+                print("🧪 Test query failed: \(error)")
+            }
+            
+            // 既存のデータをクリア
+            await SessionDataStore.shared.wipeAllPersistentData()
+            CloudKitService.shared.clearTemporaryStorage()
+            
+            await MainActor.run {
+                GroupInfoStore.shared.groupInfo = nil
+                currentGroupID = ""
+                UserDefaults.standard.removeObject(forKey: "currentGroupID")
+                UserDefaults.standard.removeObject(forKey: "userName")
+                UserDefaults.standard.synchronize()
+            }
+            
+            // グループ情報を取得
+            do {
+                let groupRecordID = CKRecord.ID(recordName: groupID)
+                
+                print("📱 Fetching from Public Database")
+                print("   Record Type: Group")
+                print("   Record ID: \(groupRecordID.recordName)")
+                
+                let groupRecord = try await db.record(for: groupRecordID)
+                
+                print("✅ Group record found!")
+                print("   Group Name: \(groupRecord["groupName"] ?? "nil")")
+                print("   Owner Name: \(groupRecord["ownerName"] ?? "nil")")
+                
+                if let groupName = groupRecord["groupName"] as? String,
+                   let ownerName = groupRecord["ownerName"] as? String {
+                    
+                    await MainActor.run {
+                        pendingGroupID = groupID
+                        pendingGroupName = groupName
+                        pendingOwnerName = ownerName
+                        showUserNameSheet = true
+                    }
+                }
+            } catch let error as CKError {
+                print("❌ CKError occurred:")
+                print("   Code: \(error.code.rawValue)")
+                print("   Description: \(error.localizedDescription)")
+                
+                // CloudKitエラーの詳細
+                switch error.code {
+                case .unknownItem:
+                    print("   ⚠️ Record not found")
+                case .networkUnavailable:
+                    print("   ⚠️ Network unavailable")
+                case .notAuthenticated:
+                    print("   ⚠️ Not authenticated to iCloud")
+                case .permissionFailure:
+                    print("   ⚠️ Permission failure")
+                case .serverResponseLost:
+                    print("   ⚠️ Server response lost")
+                case .assetFileNotFound:
+                    print("   ⚠️ Asset file not found")
+                default:
+                    print("   ⚠️ Other error: \(error.code)")
+                }
+                
+                await MainActor.run {
+                    let alert = NSAlert()
+                    alert.messageText = "グループが見つかりません"
+                    alert.informativeText = "指定されたグループIDが無効か、グループが存在しません。\n\nエラー詳細: \(error.localizedDescription)"
+                    alert.alertStyle = .warning
+                    alert.addButton(withTitle: "OK")
+                    alert.runModal()
+                }
+            } catch {
+                print("❌ Unknown error: \(error)")
+                
+                await MainActor.run {
+                    let alert = NSAlert()
+                    alert.messageText = "エラー"
+                    alert.informativeText = "予期しないエラーが発生しました: \(error.localizedDescription)"
+                    alert.alertStyle = .warning
+                    alert.addButton(withTitle: "OK")
+                    alert.runModal()
+                }
+            }
         }
     }
     

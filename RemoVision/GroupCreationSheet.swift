@@ -310,10 +310,8 @@ struct GroupCreationSheet: View {
         
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
             let alert = NSAlert()
-            alert.messageText = "共有URLをコピーしました"
-            alert.informativeText = url.absoluteString.contains("icloud.com") ?
-                "iCloudの共有URLがクリップボードにコピーされました。" :
-                "グループ参加用のURLがクリップボードにコピーされました。"
+            alert.messageText = "招待URLをコピーしました"
+            alert.informativeText = "グループ参加用のURLがクリップボードにコピーされました。\nこのURLをメンバーに共有してください。"
             alert.alertStyle = .informational
             alert.addButton(withTitle: "OK")
             alert.runModal()

@@ -3,6 +3,8 @@ import AppKit
 import ObjectiveC.runtime
 import CloudKit
 
+private let usePublicDatabase = true
+
 enum MainButtonFocus: Int, CaseIterable {
     case additionalReport
     case start
@@ -918,6 +920,13 @@ struct GroupDetailPanel: View {
     }
     
     private func fetchActualShareURL() {
+        if usePublicDatabase {
+            // パブリックデータベースモードではシンプルなURLを使用
+            actualShareURL = "monitoringsystem://join/\(groupInfo.recordID)"
+            isLoadingShareURL = false
+            return
+        }
+        
         isLoadingShareURL = true
         
         Task {
