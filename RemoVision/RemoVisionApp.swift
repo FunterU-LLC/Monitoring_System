@@ -585,11 +585,24 @@ struct RemoVisionApp: App {
     }
     
     private func handleGroupJoin(groupID: String) {
-        print("🔵 Attempting to join group with ID: \(groupID)")
+        print("\n🔵 === GROUP JOIN DEBUG ===")
+        print("📝 Attempting to join group with ID: \(groupID)")
+        print("📱 URL Scheme: monitoringsystem://join/\(groupID)")
+        print("🕐 Timestamp: \(Date())")
         
         Task {
             let container = CKContainer.default()
-            print("📱 Container ID: \(container.containerIdentifier ?? "unknown")")
+            print("\n📦 === CLOUDKIT CONFIGURATION ===")
+            print("🆔 Container ID: \(container.containerIdentifier ?? "unknown")")
+            
+            // Check environment
+            if let bundleID = Bundle.main.bundleIdentifier {
+                print("📦 Bundle ID: \(bundleID)")
+            }
+            
+            // Check if using development or production
+            let environment = ProcessInfo.processInfo.environment["CKEnvironment"]
+            print("🌍 Environment: \(environment ?? "default/production")")
             
             // CloudKit環境を確認
             #if DEBUG
@@ -597,6 +610,37 @@ struct RemoVisionApp: App {
             #else
             print("🏗️ Build Configuration: RELEASE")
             #endif
+            
+            // Check Capabilities
+            print("\n🔍 === CHECKING CAPABILITIES ===")
+            do {
+                // Check if we can access public database
+                let publicDB = container.publicCloudDatabase
+                print("✅ Public database accessible")
+                
+                // Try to perform a simple count query
+                let countQuery = CKQuery(recordType: "Group", predicate: NSPredicate(value: true))
+                let countOp = CKQueryOperation(query: countQuery)
+                countOp.resultsLimit = 1
+                var quickCheckFound = false
+                
+                countOp.recordMatchedBlock = { _, result in
+                    if case .success = result {
+                        quickCheckFound = true
+                    }
+                }
+                
+                await withCheckedContinuation { continuation in
+                    countOp.queryResultBlock = { _ in
+                        continuation.resume()
+                    }
+                    publicDB.add(countOp)
+                }
+                
+                print("📋 Quick check - found any groups: \(quickCheckFound)")
+            } catch {
+                print("❌ Capability check failed: \(error)")
+            }
             
             // TestFlightかどうかを確認
             let isTestFlight = Bundle.main.appStoreReceiptURL?.lastPathComponent == "sandboxReceipt"
@@ -629,10 +673,17 @@ struct RemoVisionApp: App {
             }
             
             // テスト: 全Groupレコードを取得
-            print("🧪 Testing CloudKit access...")
+            print("\n🧪 === TESTING CLOUDKIT ACCESS ===")
+            print("📍 Testing if we can find ANY Group records...")
+            
+            // CloudKitServiceを使用してグループをリスト
+            let allGroups = await CloudKitService.shared.listAllGroups()
+            print("\n📊 Summary: Found \(allGroups.count) total groups")
+            
             let db = CKContainer.default().publicCloudDatabase
 
             let testQuery = CKQuery(recordType: "Group", predicate: NSPredicate(value: true))
+            print("🔍 Query: All records of type 'Group' in public database")
 
             do {
                 var foundRecords: [CKRecord] = []
@@ -641,9 +692,15 @@ struct RemoVisionApp: App {
                 testOperation.resultsLimit = 10  // ここでresultsLimitを設定
                 
                 testOperation.recordMatchedBlock = { _, result in
-                    if case .success(let record) = result {
+                    switch result {
+                    case .success(let record):
                         foundRecords.append(record)
-                        print("   Found record: \(record.recordID.recordName)")
+                        print("📦 Found record: \(record.recordID.recordName)")
+                        print("   - Group Name: \(record["groupName"] ?? "nil")")
+                        print("   - Owner Name: \(record["ownerName"] ?? "nil")")
+                        print("   - Created At: \(record["createdAt"] ?? "nil")")
+                    case .failure(let error):
+                        print("⚠️ Record match error: \(error)")
                     }
                 }
                 
@@ -654,14 +711,31 @@ struct RemoVisionApp: App {
                     db.add(testOperation)
                 }
                 
-                print("🧪 Total Group records found: \(foundRecords.count)")
+                print("\n📑 === TEST QUERY RESULTS ===")
+                print("📦 Total Group records found: \(foundRecords.count)")
                 
                 if foundRecords.isEmpty {
                     print("⚠️ No Group records found in public database")
-                    print("   This suggests different environments or sync issues")
+                    print("   This could mean:")
+                    print("   1. No groups have been created yet")
+                    print("   2. Different CloudKit environments (dev vs prod)")
+                    print("   3. Sync delay between creation and query")
+                } else {
+                    print("✅ Found \(foundRecords.count) group(s) in database")
+                    print("🔍 Looking for group ID: \(groupID)")
+                    let matchingGroup = foundRecords.first { $0.recordID.recordName == groupID }
+                    if let match = matchingGroup {
+                        print("✅ Target group EXISTS in database!")
+                    } else {
+                        print("❌ Target group NOT FOUND among existing groups")
+                    }
                 }
             } catch {
-                print("🧪 Test query failed: \(error)")
+                print("\n❌ TEST QUERY FAILED")
+                print("🚨 Error: \(error)")
+                if let ckError = error as? CKError {
+                    print("🚨 CKError Code: \(ckError.code.rawValue)")
+                }
             }
             
             // 既存のデータをクリア
@@ -680,15 +754,24 @@ struct RemoVisionApp: App {
             do {
                 let groupRecordID = CKRecord.ID(recordName: groupID)
                 
-                print("📱 Fetching from Public Database")
-                print("   Record Type: Group")
-                print("   Record ID: \(groupRecordID.recordName)")
+                print("\n🔍 === FETCHING GROUP RECORD ===")
+                print("📱 Database: Public Database")
+                print("📋 Record Type: Group")
+                print("🆔 Record ID: \(groupRecordID.recordName)")
+                print("🔗 Full Record ID: \(groupRecordID)")
+                print("🌐 Zone ID: \(groupRecordID.zoneID.zoneName)")
+                print("👤 Zone Owner: \(groupRecordID.zoneID.ownerName)")
                 
+                print("⏳ Attempting to fetch record...")
                 let groupRecord = try await db.record(for: groupRecordID)
                 
-                print("✅ Group record found!")
-                print("   Group Name: \(groupRecord["groupName"] ?? "nil")")
-                print("   Owner Name: \(groupRecord["ownerName"] ?? "nil")")
+                print("\n✅ === GROUP RECORD FOUND ===")
+                print("📋 Record Type: \(groupRecord.recordType)")
+                print("🆔 Record Name: \(groupRecord.recordID.recordName)")
+                print("📝 Group Name: \(groupRecord["groupName"] ?? "nil")")
+                print("👤 Owner Name: \(groupRecord["ownerName"] ?? "nil")")
+                print("📅 Created At: \(groupRecord["createdAt"] ?? "nil")")
+                print("🔑 All Keys: \(groupRecord.allKeys())")
                 
                 if let groupName = groupRecord["groupName"] as? String,
                    let ownerName = groupRecord["ownerName"] as? String {
@@ -701,14 +784,21 @@ struct RemoVisionApp: App {
                     }
                 }
             } catch let error as CKError {
-                print("❌ CKError occurred:")
-                print("   Code: \(error.code.rawValue)")
-                print("   Description: \(error.localizedDescription)")
+                print("\n❌ === CLOUDKIT ERROR ===")
+                print("🚨 Error Code: \(error.code.rawValue)")
+                print("📝 Description: \(error.localizedDescription)")
+                print("🔍 Error Domain: \(CKError.errorDomain)")
+                print("📊 Error User Info: \(error.userInfo)")
                 
                 // CloudKitエラーの詳細
                 switch error.code {
                 case .unknownItem:
                     print("   ⚠️ Record not found")
+                    print("   💡 This means the record doesn't exist in the database")
+                    print("   🔍 Possible causes:")
+                    print("      1. Group was created in different CloudKit environment")
+                    print("      2. Group record hasn't synced yet")
+                    print("      3. Wrong record ID format")
                 case .networkUnavailable:
                     print("   ⚠️ Network unavailable")
                 case .notAuthenticated:
@@ -722,6 +812,10 @@ struct RemoVisionApp: App {
                 default:
                     print("   ⚠️ Other error: \(error.code)")
                 }
+                
+                // Try alternative query approach
+                print("\n🔄 === TRYING ALTERNATIVE QUERY ===")
+                await tryAlternativeGroupQuery(groupID: groupID, in: db)
                 
                 await MainActor.run {
                     let alert = NSAlert()
@@ -944,6 +1038,97 @@ struct RemoVisionApp: App {
     private func openAccessibilitySettings() {
         if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
             NSWorkspace.shared.open(url)
+        }
+    }
+    
+    private func tryAlternativeGroupQuery(groupID: String, in database: CKDatabase) async {
+        print("🔍 Trying query-based approach instead of direct fetch...")
+        
+        let predicate = NSPredicate(format: "recordID.recordName == %@", groupID)
+        let query = CKQuery(recordType: "Group", predicate: predicate)
+        
+        do {
+            var foundRecords: [CKRecord] = []
+            let queryOp = CKQueryOperation(query: query)
+            
+            queryOp.recordMatchedBlock = { _, result in
+                if case .success(let record) = result {
+                    foundRecords.append(record)
+                    print("✅ Found via query: \(record.recordID.recordName)")
+                }
+            }
+            
+            await withCheckedContinuation { continuation in
+                queryOp.queryResultBlock = { _ in
+                    continuation.resume()
+                }
+                database.add(queryOp)
+            }
+            
+            if let groupRecord = foundRecords.first {
+                print("✅ Successfully found group via query!")
+                if let groupName = groupRecord["groupName"] as? String,
+                   let ownerName = groupRecord["ownerName"] as? String {
+                    
+                    await MainActor.run {
+                        pendingGroupID = groupID
+                        pendingGroupName = groupName
+                        pendingOwnerName = ownerName
+                        showUserNameSheet = true
+                    }
+                }
+            } else {
+                print("❌ Query approach also failed to find the group")
+                
+                // Try with delay
+                print("\n⏳ === RETRYING WITH DELAY ===")
+                print("Waiting 5 seconds for potential sync...")
+                try? await Task.sleep(nanoseconds: 5_000_000_000) // 5秒待機
+                
+                // Retry the direct fetch
+                do {
+                    let groupRecordID = CKRecord.ID(recordName: groupID)
+                    let groupRecord = try await database.record(for: groupRecordID)
+                    
+                    print("✅ Found after delay!")
+                    if let groupName = groupRecord["groupName"] as? String,
+                       let ownerName = groupRecord["ownerName"] as? String {
+                        
+                        await MainActor.run {
+                            pendingGroupID = groupID
+                            pendingGroupName = groupName
+                            pendingOwnerName = ownerName
+                            showUserNameSheet = true
+                        }
+                    }
+                } catch {
+                    print("❌ Still not found after delay")
+                    await showGroupNotFoundError(groupID: groupID)
+                }
+            }
+        } catch {
+            print("❌ Alternative query failed: \(error)")
+        }
+    }
+    
+    private func showGroupNotFoundError(groupID: String) async {
+        await MainActor.run {
+            let alert = NSAlert()
+            alert.messageText = "グループが見つかりません"
+            alert.informativeText = """
+            グループID: \(groupID)
+            
+            考えられる原因:
+            1. グループがまだ作成されていない
+            2. グループ作成者と異なるiCloudアカウント
+            3. ネットワーク接続の問題
+            4. CloudKit同期の遅延
+            
+            グループ作成者に確認してください。
+            """
+            alert.alertStyle = .warning
+            alert.addButton(withTitle: "OK")
+            alert.runModal()
         }
     }
 }

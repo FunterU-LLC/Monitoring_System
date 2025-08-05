@@ -188,6 +188,70 @@ final class CloudKitService {
         static let appUsage = "AppUsage"
     }
     
+    // グループの存在を確認する関数
+    func verifyGroupExists(groupID: String) async -> Bool {
+        print("\n🔍 === VERIFYING GROUP EXISTS ===")
+        print("🆔 Group ID: \(groupID)")
+        
+        let db = CKContainer.default().publicCloudDatabase
+        let groupRecordID = CKRecord.ID(recordName: groupID)
+        
+        do {
+            // 直接フェッチを試みる
+            let _ = try await db.record(for: groupRecordID)
+            print("✅ Group exists!")
+            return true
+        } catch {
+            print("❌ Direct fetch failed, trying query...")
+            
+            // クエリでも試す
+            let predicate = NSPredicate(format: "recordID.recordName == %@", groupID)
+            let query = CKQuery(recordType: RecordType.group, predicate: predicate)
+            
+            do {
+                let records = try await performQuery(query, in: db)
+                if !records.isEmpty {
+                    print("✅ Group found via query!")
+                    return true
+                } else {
+                    print("❌ Group not found via query")
+                    return false
+                }
+            } catch {
+                print("❌ Query also failed: \(error)")
+                return false
+            }
+        }
+    }
+    
+    // すべてのグループをリストする関数
+    func listAllGroups() async -> [(id: String, name: String, owner: String)] {
+        print("\n📋 === LISTING ALL GROUPS ===")
+        
+        let db = CKContainer.default().publicCloudDatabase
+        let query = CKQuery(recordType: RecordType.group, predicate: NSPredicate(value: true))
+        
+        do {
+            let records = try await performQuery(query, in: db)
+            print("📦 Found \(records.count) groups")
+            
+            let groups = records.compactMap { record -> (String, String, String)? in
+                guard let groupName = record["groupName"] as? String,
+                      let ownerName = record["ownerName"] as? String else {
+                    return nil
+                }
+                let id = record.recordID.recordName
+                print("  - ID: \(id), Name: \(groupName), Owner: \(ownerName)")
+                return (id, groupName, ownerName)
+            }
+            
+            return groups
+        } catch {
+            print("❌ Failed to list groups: \(error)")
+            return []
+        }
+    }
+    
     // CloudKitServiceクラス内に追加
     func debugPrintCurrentEnvironment() {
         print("=== CloudKit Environment Debug ===")
@@ -222,6 +286,11 @@ final class CloudKitService {
         }
         
         if usePublicDatabase {
+            print("\n🚀 === CREATING GROUP IN PUBLIC DATABASE ===")
+            print("📝 Group ID: \(groupID)")
+            print("📝 Group Name: \(groupName)")
+            print("📝 Owner Name: \(ownerName)")
+            
             // パブリックデータベースを使用する場合
             let groupRecordID = CKRecord.ID(recordName: groupID)
             let groupRecord = CKRecord(recordType: RecordType.group, recordID: groupRecordID)
@@ -229,14 +298,28 @@ final class CloudKitService {
             groupRecord["ownerName"] = ownerName as CKRecordValue
             groupRecord["createdAt"] = Date() as CKRecordValue
             
+            print("📋 Created Group Record:")
+            print("   Record Type: \(groupRecord.recordType)")
+            print("   Record ID: \(groupRecord.recordID.recordName)")
+            
             // グループレコードを保存
             let db = CKContainer.default().publicCloudDatabase
             
             do {
+                print("⏳ Saving group record to public database...")
                 let savedRecord = try await db.save(groupRecord)
-                print("✅ Group record saved successfully: \(savedRecord.recordID)")
+                print("\n✅ === GROUP RECORD SAVED ===")
+                print("🔑 Saved Record ID: \(savedRecord.recordID.recordName)")
+                print("📝 Saved Group Name: \(savedRecord["groupName"] ?? "nil")")
+                print("👤 Saved Owner Name: \(savedRecord["ownerName"] ?? "nil")")
+                print("📅 Saved Created At: \(savedRecord["createdAt"] ?? "nil")")
             } catch {
-                print("❌ Failed to save group record: \(error)")
+                print("\n❌ === FAILED TO SAVE GROUP ===")
+                print("🚨 Error: \(error)")
+                if let ckError = error as? CKError {
+                    print("🚨 CKError Code: \(ckError.code.rawValue)")
+                    print("🚨 CKError Description: \(ckError.localizedDescription)")
+                }
                 throw error
             }
             
@@ -260,7 +343,20 @@ final class CloudKitService {
             
             // シンプルなURLスキームを返す
             let url = URL(string: "monitoringsystem://join/\(groupID)")!
-            print("🔗 Generated URL: \(url.absoluteString)")
+            print("\n🔗 === SHARE URL GENERATED ===")
+            print("📱 URL: \(url.absoluteString)")
+            print("🔑 Group ID in URL: \(groupID)")
+            
+            // 作成直後に確認
+            print("\n🔍 === VERIFYING GROUP CREATION ===")
+            let exists = await verifyGroupExists(groupID: groupID)
+            if exists {
+                print("✅ Group verified successfully!")
+            } else {
+                print("⚠️ Group not immediately visible - may need sync time")
+            }
+            
+            print("✅ Group creation complete!")
             return (url, groupID)
         } else {
             // 既存の実装（プライベートデータベース + シェア）
@@ -649,26 +745,33 @@ final class CloudKitService {
     }
 
     func createOrUpdateMember(groupID: String, userName: String) async throws -> String {
+        print("\n👥 === CREATE OR UPDATE MEMBER ===")
+        print("🆔 Group ID: \(groupID)")
+        print("👤 User Name: \(userName)")
+        print("🕐 Timestamp: \(Date())")
+        
         await debugShareAndZoneInfo()
         
-        print("🔧 createOrUpdateMember called:")
-        print("  groupID: \(groupID)")
-        print("  userName: \(userName)")
-        
         if usePublicDatabase {
-            // パブリックデータベースモードの処理
+            print("\n🌐 Using PUBLIC DATABASE mode")
             let db = CKContainer.default().publicCloudDatabase
             
             // 既存のメンバーをチェック
+            print("🔍 Checking for existing member...")
             if let existingMemberID = try await findMember(groupID: groupID, userName: userName) {
                 print("✅ Existing member found: \(existingMemberID)")
                 return existingMemberID
             }
+            print("🆕 No existing member found, creating new...")
             
             // 新しいメンバーレコードを作成
             let memberID = UUID().uuidString
             let memberRecordID = CKRecord.ID(recordName: memberID)
             let memberRecord = CKRecord(recordType: RecordType.member, recordID: memberRecordID)
+            
+            print("\n🆕 Creating new member record:")
+            print("🆔 Member ID: \(memberID)")
+            print("📋 Record Type: \(RecordType.member)")
             memberRecord["userName"] = userName as CKRecordValue
             memberRecord["groupID"] = groupID as CKRecordValue
             memberRecord["joinedAt"] = Date() as CKRecordValue
@@ -720,13 +823,28 @@ final class CloudKitService {
     }
     
     private func findMember(groupID: String, userName: String) async throws -> String? {
+        print("\n🔍 === FINDING MEMBER ===")
+        print("🆔 Group ID: \(groupID)")
+        print("👤 User Name: \(userName)")
+        
         if usePublicDatabase {
             // パブリックデータベースモードの処理
             let db = CKContainer.default().publicCloudDatabase
             let predicate = NSPredicate(format: "groupID == %@ AND userName == %@", groupID, userName)
             let query = CKQuery(recordType: RecordType.member, predicate: predicate)
             
+            print("🔍 Query predicate: groupID == '\(groupID)' AND userName == '\(userName)'")
+            print("📋 Record Type: \(RecordType.member)")
+            
             let records = try await performQuery(query, in: db)
+            print("📑 Found \(records.count) matching member(s)")
+            
+            if let memberID = records.first?.recordID.recordName {
+                print("✅ Member exists with ID: \(memberID)")
+            } else {
+                print("❌ No existing member found")
+            }
+            
             return records.first?.recordID.recordName
         } else {
             let db = currentDatabase
